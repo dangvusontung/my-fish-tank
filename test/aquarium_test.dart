@@ -253,4 +253,51 @@ void main() {
       }
     }
   });
+
+  testWidgets('arranging picks and drags decorations without feeding', (
+    tester,
+  ) async {
+    final pond = Pond.starter()..coins = 1000;
+    pond.buyDecor(DecorKind.rockCave, x: .3);
+    final cave = pond.decor.single;
+    final key = GlobalKey<AquariumState>();
+    const size = Size(360, 560);
+    final taps = <Decor?>[];
+    final moved = <Decor>[];
+    var fed = 0;
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox.fromSize(
+            size: size,
+            child: Aquarium(
+              key: key,
+              pond: pond,
+              onFeed: () => fed++,
+              arranging: true,
+              onDecorTap: taps.add,
+              onDecorMoved: moved.add,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+    final at = key.currentState!.decorPosition(cave.id, size)!;
+
+    await tester.tapAt(at);
+    expect(taps.single, same(cave));
+    await tester.tapAt(const Offset(300, 200));
+    expect(taps.last, isNull);
+    expect(fed, 0);
+
+    await tester.dragFrom(at, const Offset(120, 0));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(moved.single, same(cave));
+    expect(cave.x, closeTo(.3 + 120 / size.width, .02));
+    expect(cave.y, inInclusiveRange(Decor.top, Decor.bottom));
+  });
 }

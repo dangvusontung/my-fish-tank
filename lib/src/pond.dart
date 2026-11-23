@@ -1,8 +1,10 @@
 import 'dart:math' as math;
 
+import 'decor.dart';
 import 'species.dart';
 import 'species_catalog.dart';
 
+export 'decor.dart';
 export 'species.dart';
 
 enum Tail {
@@ -403,7 +405,13 @@ class Pond {
       ..nurserySatiety = (json['nurserySatiety'] as num? ?? 80).toDouble()
       ..nextNurseryFeed = (json['nextNurseryFeed'] as num? ?? 0).toDouble()
       ..autoNursery = json['autoNursery'] as bool? ?? true
-      ..nextLitterId = json['nextLitterId'] as int? ?? 1;
+      ..nextLitterId = json['nextLitterId'] as int? ?? 1
+      ..nextDecorId = json['nextDecorId'] as int? ?? 1;
+    pond.decor.addAll(
+      (json['decor'] as List<dynamic>? ?? const []).map(
+        (value) => Decor.fromJson(value as Map<String, dynamic>),
+      ),
+    );
     pond.litters.addAll(
       (json['litters'] as List<dynamic>? ?? const []).map(
         (value) => Litter.fromJson(
@@ -483,6 +491,7 @@ class Pond {
     Equipment.bettaCups: 0,
   };
   final List<Litter> litters = [];
+  final List<Decor> decor = [];
   final Map<Species, double> nextLitter = {};
 
   /// Spawnings by the current pair of each species.
@@ -504,6 +513,7 @@ class Pond {
   double nurserySatiety = 80;
   double nextNurseryFeed = 0;
   int nextLitterId = 1;
+  int nextDecorId = 1;
 
   /// Whether newborns go straight to the nursery while it has room.
   bool autoNursery = true;
@@ -516,7 +526,26 @@ class Pond {
   int get adultCount => fish.where((item) => item.isAdult(time)).length;
   int get juvenileCount => fish.length - adultCount;
   int get dead => corpses.length;
-  int get sheltered => levels[Equipment.javaMoss]! * 7;
+  int get sheltered =>
+      levels[Equipment.javaMoss]! * 7 +
+      placedDecor.fold(0, (total, item) => total + item.kind.shelter);
+
+  Iterable<Decor> get placedDecor => decor.where((item) => item.placed);
+
+  /// Placed pieces of [effect] that [species] likes.
+  int _liked(Species species, DecorEffect effect) => placedDecor
+      .where(
+        (item) =>
+            item.kind.effect == effect &&
+            item.kind.likedBy.contains(species.name),
+      )
+      .length;
+
+  /// How many betta males can each hold a territory in the main tank.
+  int get bettaTerritories => 1 + _liked(Species.betta, DecorEffect.territory);
+
+  static const comfortPerDecor = 8;
+  static const comfortBonus = .15;
   int get snails => levels[Equipment.snails]! * 3;
   int get capacity => 26 + levels[Equipment.storage]! * 20;
   int get nurseryCapacity => levels[Equipment.nursery]! * nurseryRoomPerLevel;
@@ -572,7 +601,7 @@ class Pond {
     return math.max(1, ((due - time) / daySeconds).ceil());
   }
 
-  /// Adult male bettas beyond the first, which fight instead of earning.
+  /// Adult male bettas without a territory, which fight instead of earning.
   int get rivalBettas => math.max(
     0,
     fish
@@ -584,7 +613,7 @@ class Pond {
                   item.isAdult(time),
             )
             .length -
-        1,
+        bettaTerritories,
   );
 
   bool get canRepairBreeders => ownedSpecies.any((species) {
@@ -647,6 +676,7 @@ class Pond {
       }
     }
     var bettaMales = 0;
+    final territories = bettaTerritories;
     var main = 0.0;
     var nursery = 0.0;
     for (final item in fish) {
@@ -659,11 +689,11 @@ class Pond {
               ? 1.35
               : .7;
         }
-        // Only one male holds the open tank; males in cups earn in peace.
+        // Each territory holds one male; males in cups earn in peace.
         if (species == Species.betta &&
             item.sex == Sex.male &&
             item.zone == Zone.main &&
-            bettaMales++ > 0) {
+            bettaMales++ >= territories) {
           value = 0;
         }
       }
@@ -673,15 +703,43 @@ class Pond {
         main += value;
       }
     }
+    main += _comfortIncome(at);
     double health(double food, double clean) =>
         (.30 + .70 * food / 100) * (.28 + .72 * clean / 100);
     return main * health(satiety, water) +
         nursery * health(nurserySatiety, nurseryWater);
   }
 
-  double _hatchRate(Species species) => species == Species.corydoras
-      ? math.min(.8, species.hatchRate + levels[Equipment.javaMoss]! * .06)
-      : species.hatchRate;
+  /// Extra income from adults resting near decorations they like.
+  double _comfortIncome(double at) {
+    final kinds = {
+      for (final item in placedDecor)
+        if (item.kind.effect == DecorEffect.comfort) item.kind,
+    };
+    if (kinds.isEmpty) return 0;
+    final adults = <Species, int>{};
+    for (final item in fish) {
+      if (item.zone == Zone.main && item.isAdult(at)) {
+        adults.update(item.species, (count) => count + 1, ifAbsent: () => 1);
+      }
+    }
+    var bonus = 0.0;
+    for (final MapEntry(key: species, value: count) in adults.entries) {
+      final room = _liked(species, DecorEffect.comfort) * comfortPerDecor;
+      bonus += math.min(count, room) * species.adultIncome * comfortBonus;
+    }
+    return bonus;
+  }
+
+  /// Share of [species]' eggs that hatch, after moss and spawning decor.
+  double hatchRate(Species species) {
+    var rate = species == Species.corydoras
+        ? math.min(.8, species.hatchRate + levels[Equipment.javaMoss]! * .06)
+        : species.hatchRate;
+    final spawning = _liked(species, DecorEffect.spawning);
+    if (spawning > 0) rate += math.min(.2, spawning * .1);
+    return math.min(.95, rate);
+  }
 
   int _random(int upperBound) {
     seed = (1664525 * seed + 1013904223) & 0xffffffff;
@@ -923,18 +981,28 @@ class Pond {
               item.isAdult(time),
         )
         .toList();
-    if (males.length < 2) return;
-    final holder = males.firstWhere(
-      (item) => breeders.contains(item.id),
-      orElse: () => males.first,
-    );
+    final holders = _territoryHolders(males);
     for (final rival in males) {
       if (free == 0) break;
-      if (rival == holder) continue;
+      if (holders.contains(rival)) continue;
       rival.zone = Zone.cups;
       free--;
       report.housed++;
     }
+  }
+
+  /// The males that hold a territory: the breeding male first, then others
+  /// in tank order, one per territory.
+  Set<Fish> _territoryHolders(List<Fish> males) {
+    if (males.isEmpty) return {};
+    final breeder = males.firstWhere(
+      (item) => breeders.contains(item.id),
+      orElse: () => males.first,
+    );
+    return {
+      breeder,
+      ...males.where((item) => item != breeder),
+    }.take(bettaTerritories).toSet();
   }
 
   /// Hatched fry die off at their species' rate, faster when the pond is
@@ -968,15 +1036,10 @@ class Pond {
               item.isAdult(time),
         )
         .toList();
-    if (males.length < 2) return;
-    // The breeding male, or else the first, holds the territory. Every rival
-    // risks a fatal fight.
-    final holder = males.firstWhere(
-      (item) => breeders.contains(item.id),
-      orElse: () => males.first,
-    );
+    // Every male without a territory risks a fatal fight.
+    final holders = _territoryHolders(males);
     for (final rival in males) {
-      if (rival == holder) continue;
+      if (holders.contains(rival)) continue;
       if (_random(10000) >= 400 * step / daySeconds) continue;
       fish.remove(rival);
       _bury(rival);
@@ -1057,7 +1120,7 @@ class Pond {
     for (final clutch in due) {
       clutches.remove(clutch);
       final variance = .85 + _random(31) / 100;
-      final hatched = (clutch.eggs * _hatchRate(clutch.species) * variance)
+      final hatched = (clutch.eggs * hatchRate(clutch.species) * variance)
           .round()
           .clamp(0, clutch.eggs);
       final litter = _recordLitter(
@@ -1323,6 +1386,29 @@ class Pond {
     return true;
   }
 
+  bool buyDecor(DecorKind kind, {double x = .5, double y = .86}) {
+    if (coins < kind.price) return false;
+    coins -= kind.price;
+    decor.add(Decor(id: nextDecorId++, kind: kind)..moveTo(x, y));
+    return true;
+  }
+
+  /// Puts a stored piece back in the tank, or stores a placed one.
+  void setPlaced(int id, bool placed) {
+    for (final item in decor) {
+      if (item.id == id) item.placed = placed;
+    }
+  }
+
+  /// Sells a piece back for half its price.
+  int sellDecor(int id) {
+    final item = decor.where((value) => value.id == id).firstOrNull;
+    if (item == null) return 0;
+    decor.remove(item);
+    coins += item.kind.resale;
+    return item.kind.resale;
+  }
+
   /// What [item] sells for now: full price grown, less while growing, and
   /// nothing while it is still a fry.
   int priceOf(Fish item) {
@@ -1431,6 +1517,8 @@ class Pond {
     'autoNursery': autoNursery,
     'nextLitterId': nextLitterId,
     'litters': litters.map((item) => item.toJson()).toList(),
+    'nextDecorId': nextDecorId,
+    'decor': decor.map((item) => item.toJson()).toList(),
     'levels': {for (final entry in levels.entries) entry.key.name: entry.value},
     'breeders': breeders.toList(),
     'fish': fish.map((item) => item.toJson()).toList(),

@@ -460,6 +460,87 @@ void main() {
     expect(pond.breeders, isNot(contains(male.id)));
     expect(pond.inZone(Zone.nursery), 1);
   });
+
+  test('decorations are bought, stored, sold, and add shelter', () {
+    final pond = Pond.starter()..coins = 1000;
+    final base = pond.sheltered;
+
+    expect(pond.buyDecor(DecorKind.weedClump, x: .3), isTrue);
+    expect(pond.coins, 1000 - DecorKind.weedClump.price);
+    expect(pond.sheltered, base + DecorKind.weedClump.shelter);
+
+    final piece = pond.decor.single;
+    pond.setPlaced(piece.id, false);
+    expect(pond.sheltered, base);
+    pond.setPlaced(piece.id, true);
+
+    piece.moveTo(2, 0);
+    expect(piece.x, .94);
+    expect(piece.y, Decor.top);
+
+    final restored = Pond.fromJson(jsonDecode(jsonEncode(pond.toJson())));
+    expect(restored.toJson(), pond.toJson());
+
+    final coins = pond.coins;
+    expect(pond.sellDecor(piece.id), DecorKind.weedClump.resale);
+    expect(pond.coins, coins + DecorKind.weedClump.resale);
+    expect(pond.decor, isEmpty);
+  });
+
+  test('a liked hideout lifts the income of nearby adults', () {
+    final plain = Pond.starter()..coins = 1000;
+    plain.buyPair(Species.corydoras);
+    final decorated = Pond.fromJson(jsonDecode(jsonEncode(plain.toJson())));
+    final unliked = Pond.fromJson(jsonDecode(jsonEncode(plain.toJson())));
+
+    decorated.buyDecor(DecorKind.rockCave);
+    unliked.buyDecor(DecorKind.weedClump);
+    // Buying spends coins but should not change income on its own.
+    expect(unliked.income, closeTo(plain.income, 1e-9));
+
+    final lift = decorated.income - plain.income;
+    final health =
+        (.30 + .70 * plain.satiety / 100) * (.28 + .72 * plain.water / 100);
+    expect(
+      lift,
+      closeTo(
+        2 * Species.corydoras.adultIncome * Pond.comfortBonus * health,
+        1e-9,
+      ),
+    );
+  });
+
+  test('driftwood gives a second betta male his own territory', () {
+    Pond twoMales() {
+      final pond = Pond.starter()..coins = 2000;
+      pond.buyPair(Species.betta);
+      pond.buyPair(Species.betta);
+      return pond;
+    }
+
+    final bare = twoMales();
+    final wooded = twoMales()..buyDecor(DecorKind.driftwood);
+    expect(bare.rivalBettas, 1);
+    expect(wooded.rivalBettas, 0);
+
+    final fights = bare.advance(const Duration(hours: 2)).fought;
+    final calm = wooded.advance(const Duration(hours: 2)).fought;
+    expect(fights, greaterThan(0));
+    expect(calm, 0);
+  });
+
+  test('spawning decor raises the hatch rate of liked species only', () {
+    final pond = Pond.starter()..coins = 1000;
+    final angel = pond.hatchRate(Species.angelfish);
+    final neon = pond.hatchRate(Species.neon);
+
+    pond.buyDecor(DecorKind.flatStone);
+    expect(pond.hatchRate(Species.angelfish), closeTo(angel + .1, 1e-9));
+    pond.buyDecor(DecorKind.flatStone);
+    pond.buyDecor(DecorKind.flatStone);
+    expect(pond.hatchRate(Species.angelfish), closeTo(angel + .2, 1e-9));
+    expect(pond.hatchRate(Species.neon), neon);
+  });
 }
 
 Pond _withCorpses(Pond pond, int count) {

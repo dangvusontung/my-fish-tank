@@ -75,6 +75,10 @@ class Aquarium extends StatefulWidget {
     this.onZoom,
     this.zone = Zone.main,
     this.overlay = EdgeInsets.zero,
+    this.arranging = false,
+    this.selectedDecor,
+    this.onDecorTap,
+    this.onDecorMoved,
   });
 
   final Pond pond;
@@ -83,6 +87,17 @@ class Aquarium extends StatefulWidget {
   /// surface sits below the top controls and the floor rises above the
   /// bottom ones.
   final EdgeInsets overlay;
+
+  /// In arranging mode taps pick decorations and one-finger drags move
+  /// them; feeding and fish picking pause.
+  final bool arranging;
+  final int? selectedDecor;
+
+  /// Called with the tapped piece, or null when the tap missed every piece.
+  final ValueChanged<Decor?>? onDecorTap;
+
+  /// Called when a drag has put a piece down somewhere new.
+  final ValueChanged<Decor>? onDecorMoved;
 
   /// Which part of the pond to show.
   final Zone zone;
@@ -111,6 +126,12 @@ class AquariumState extends State<Aquarium>
   late final _TankMotion _motion;
   late final Ticker _ticker;
   double _gestureZoom = 1;
+  Decor? _dragging;
+  Offset _grab = Offset.zero;
+
+  /// Where the latest finger came down. Drags only start after the finger
+  /// has moved a little, so the pick-up point comes from here.
+  Offset _pressedAt = Offset.zero;
   Offset _gestureAnchor = Offset.zero;
 
   double get zoom => _motion.zoom;
@@ -195,7 +216,29 @@ class AquariumState extends State<Aquarium>
     return best;
   }
 
+  /// Where piece [id] stands, in local coordinates of a tank of [size].
+  @visibleForTesting
+  Offset? decorPosition(int id, Size size) {
+    final item = widget.pond.decor.where((value) => value.id == id).firstOrNull;
+    if (item == null || !item.placed) return null;
+    return _motion.toScreen(_motion.decorCenter(item, size), size);
+  }
+
+  Decor? _decorAt(Offset point, Size size) {
+    if (_motion.zone != Zone.main) return null;
+    final reach = 40 * _motion.decorScale(size) * _motion.zoom;
+    for (final item in widget.pond.placedDecor.toList().reversed) {
+      final center = _motion.toScreen(_motion.decorCenter(item, size), size);
+      if ((center - point).distance < reach) return item;
+    }
+    return null;
+  }
+
   void _tap(Offset point, Size size) {
+    if (widget.arranging) {
+      widget.onDecorTap?.call(_decorAt(point, size));
+      return;
+    }
     final onScoop = widget.onScoop;
     if (onScoop != null) {
       for (final corpse in _motion.corpses.toList().reversed) {
@@ -218,17 +261,33 @@ class AquariumState extends State<Aquarium>
   }
 
   void _longPress(Offset point, Size size) {
+    if (widget.arranging) return;
     final onSelect = widget.onSelect;
     if (onSelect == null) return;
     if (_fishAt(point, size) case final fish?) onSelect(fish);
   }
 
   void _scaleStart(ScaleStartDetails details, Size size) {
+    if (widget.arranging && details.pointerCount == 1) {
+      final item = _decorAt(_pressedAt, size);
+      if (item != null) {
+        _dragging = item;
+        final at = _motion.toTank(_pressedAt, size);
+        _grab = at - Offset(item.x, item.y + _motion.lift);
+        widget.onDecorTap?.call(item);
+        return;
+      }
+    }
     _gestureZoom = _motion.zoom;
     _gestureAnchor = _motion.toTank(details.localFocalPoint, size);
   }
 
   void _scaleUpdate(ScaleUpdateDetails details, Size size) {
+    if (_dragging case final item?) {
+      final at = _motion.toTank(details.localFocalPoint, size) - _grab;
+      item.moveTo(at.dx, at.dy - _motion.lift);
+      return;
+    }
     final zoom = (_gestureZoom * details.scale).clamp(1.0, maxZoom);
     if (zoom == 1 && _motion.zoom == 1) return;
     final focal = details.localFocalPoint;
@@ -263,22 +322,34 @@ class AquariumState extends State<Aquarium>
             -.15,
             0.0,
           )
-          ..laneGap = math.max(.02, 13 / size.height);
+          ..laneGap = math.max(.02, 13 / size.height)
+          ..arranging = widget.arranging
+          ..selectedDecor = widget.selectedDecor;
         return Semantics(
           button: true,
           label: 'Rải thức ăn vào hồ',
           onTap: () => feed(),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            excludeFromSemantics: true,
-            onTapUp: (event) => _tap(event.localPosition, size),
-            onLongPressStart: (event) => _longPress(event.localPosition, size),
-            onScaleStart: (details) => _scaleStart(details, size),
-            onScaleUpdate: (details) => _scaleUpdate(details, size),
-            child: SizedBox.expand(
-              child: ClipRect(
-                child: RepaintBoundary(
-                  child: CustomPaint(painter: _AquariumPainter(_motion)),
+          child: Listener(
+            onPointerDown: (event) => _pressedAt = event.localPosition,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              excludeFromSemantics: true,
+              onTapUp: (event) => _tap(event.localPosition, size),
+              onLongPressStart: (event) =>
+                  _longPress(event.localPosition, size),
+              onScaleStart: (details) => _scaleStart(details, size),
+              onScaleUpdate: (details) => _scaleUpdate(details, size),
+              onScaleEnd: (_) {
+                if (_dragging case final item?) {
+                  _dragging = null;
+                  widget.onDecorMoved?.call(item);
+                }
+              },
+              child: SizedBox.expand(
+                child: ClipRect(
+                  child: RepaintBoundary(
+                    child: CustomPaint(painter: _AquariumPainter(_motion)),
+                  ),
                 ),
               ),
             ),
@@ -339,6 +410,16 @@ class _CometTrailSample {
 }
 
 class _TankMotion extends ChangeNotifier {
+  bool arranging = false;
+  int? selectedDecor;
+
+  double decorScale(Size size) => (size.shortestSide / 420).clamp(.77, 1.24);
+
+  /// The middle of a piece's drawing, as fractions of the tank, for picking
+  /// it up.
+  Offset decorCenter(Decor item, Size size) =>
+      Offset(item.x, item.y + lift - 18 * decorScale(size) / size.height);
+
   _TankMotion(this.pond, this.zone);
 
   final Pond pond;
@@ -596,12 +677,44 @@ class _TankMotion extends ChangeNotifier {
       );
     }
     if (fish.age(pond.time) < Pond.fryDays && pond.sheltered > 0) {
-      final cycle = movingTime * .44 + phase;
-      return Offset(
-        (fish.id.isEven ? .19 : .84) + math.sin(cycle) * .07,
-        .72 + depth * .13 + math.cos(cycle) * .03,
-      );
+      // Fry hide around the moss and the decorations, spread by ID.
+      final hideouts = [
+        if (pond.levels[Equipment.javaMoss]! > 0) ...[
+          const Offset(.19, .78),
+          const Offset(.84, .78),
+        ],
+        for (final item in pond.placedDecor) Offset(item.x, item.y - .06),
+      ];
+      if (hideouts.isNotEmpty) {
+        final cycle = movingTime * .44 + phase;
+        final home = hideouts[fish.id % hideouts.length];
+        return home +
+            Offset(
+              math.sin(cycle) * .06,
+              depth * .06 - .03 + math.cos(cycle) * .025,
+            );
+      }
     }
+    final roaming = _roam(pose, movingTime, depth);
+    // Fish linger near a decoration they find comfortable.
+    final haunt = pond.placedDecor
+        .where(
+          (item) =>
+              item.kind.effect == DecorEffect.comfort &&
+              item.kind.likedBy.contains(fish.species.name),
+        )
+        .toList();
+    if (haunt.isEmpty) return roaming;
+    final spot = haunt[fish.id % haunt.length];
+    return Offset(
+      roaming.dx + (spot.x - roaming.dx) * .5,
+      roaming.dy + (spot.y - .1 - roaming.dy) * .4,
+    );
+  }
+
+  Offset _roam(_Pose pose, double movingTime, double depth) {
+    final fish = pose.fish;
+    final phase = pose.phase;
     switch (fish.species.style) {
       case FishStyle.neon:
         // The school follows one shared path; each fish keeps its slot.
@@ -815,6 +928,7 @@ class _AquariumPainter extends CustomPainter {
       case Zone.main:
         _drawPlants(canvas, size, line, time);
         _drawMoss(canvas, size, line, motion.pond.levels[Equipment.javaMoss]!);
+        _drawDecor(canvas, size, paint, line, time);
         _drawFeeder(canvas, size, paint, line);
         _drawFilter(canvas, size, line, time);
         _drawClutches(canvas, size, paint, line, time);
@@ -937,6 +1051,232 @@ class _AquariumPainter extends CustomPainter {
           );
         }
         previous = tip;
+      }
+    }
+  }
+
+  void _drawDecor(
+    Canvas canvas,
+    Size size,
+    Paint fill,
+    Paint line,
+    double time,
+  ) {
+    final scale = motion.decorScale(size);
+    for (final item in motion.pond.placedDecor) {
+      final base = Offset(
+        item.x * size.width,
+        (item.y + motion.lift) * size.height,
+      );
+      Offset p(double dx, double dy) => base + Offset(dx, dy) * scale;
+      void stroke(Path path, Color color, double width) {
+        line
+          ..color = color
+          ..strokeWidth = width * scale;
+        canvas.drawPath(path, line);
+      }
+
+      void solid(Path path, Color color) {
+        fill.color = color;
+        canvas.drawPath(path, fill);
+      }
+
+      switch (item.kind) {
+        case DecorKind.rockCave:
+          final mound = Path()
+            ..moveTo(p(-36, 0).dx, p(-36, 0).dy)
+            ..quadraticBezierTo(
+              p(-30, -44).dx,
+              p(-30, -44).dy,
+              p(0, -42).dx,
+              p(0, -42).dy,
+            )
+            ..quadraticBezierTo(
+              p(32, -42).dx,
+              p(32, -42).dy,
+              p(36, 0).dx,
+              p(36, 0).dy,
+            )
+            ..close();
+          solid(mound, const Color(0xff324a58));
+          stroke(mound, const Color(0xffa9bcc6), 1.6);
+          final mouth = Path()
+            ..addArc(
+              Rect.fromCenter(
+                center: p(2, 0),
+                width: 30 * scale,
+                height: 34 * scale,
+              ),
+              math.pi,
+              math.pi,
+            )
+            ..close();
+          solid(mouth, const Color(0xff081720));
+          stroke(
+            Path()
+              ..moveTo(p(-22, -26).dx, p(-22, -26).dy)
+              ..lineTo(p(-12, -30).dx, p(-12, -30).dy)
+              ..moveTo(p(14, -32).dx, p(14, -32).dy)
+              ..lineTo(p(24, -24).dx, p(24, -24).dy),
+            const Color(0xff7d939f),
+            1.2,
+          );
+        case DecorKind.driftwood:
+          final wood = Path()
+            ..moveTo(p(-40, 0).dx, p(-40, 0).dy)
+            ..quadraticBezierTo(
+              p(-6, -6).dx,
+              p(-6, -6).dy,
+              p(34, -34).dx,
+              p(34, -34).dy,
+            )
+            ..moveTo(p(-8, -6).dx, p(-8, -6).dy)
+            ..quadraticBezierTo(
+              p(-14, -26).dx,
+              p(-14, -26).dy,
+              p(-6, -48).dx,
+              p(-6, -48).dy,
+            )
+            ..moveTo(p(14, -16).dx, p(14, -16).dy)
+            ..quadraticBezierTo(
+              p(20, -36).dx,
+              p(20, -36).dy,
+              p(12, -54).dx,
+              p(12, -54).dy,
+            );
+          stroke(wood, const Color(0xff7a5a36), 5);
+          stroke(wood, const Color(0xffd8b48a), 1.3);
+        case DecorKind.flatStone:
+          final slab = Path()
+            ..addOval(
+              Rect.fromLTRB(
+                p(-32, -12).dx,
+                p(-32, -12).dy,
+                p(32, 2).dx,
+                p(32, 2).dy,
+              ),
+            );
+          solid(slab, const Color(0xff4f6470));
+          stroke(slab, const Color(0xffbfd0d8), 1.5);
+          stroke(
+            Path()
+              ..moveTo(p(-18, -8).dx, p(-18, -8).dy)
+              ..lineTo(p(12, -9).dx, p(12, -9).dy),
+            const Color(0xffe3eef2),
+            1,
+          );
+        case DecorKind.weedClump:
+          final weed = Path();
+          for (var i = 0; i < 8; i++) {
+            final root = -14.0 + i * 4;
+            final height = 46.0 + (i * 7 % 22);
+            final sway = math.sin(time * 1.1 + i * .9 + item.id) * 9;
+            weed
+              ..moveTo(p(root, 0).dx, p(root, 0).dy)
+              ..quadraticBezierTo(
+                p(root - 6, -height * .5).dx,
+                p(root - 6, -height * .5).dy,
+                p(root + sway, -height).dx,
+                p(root + sway, -height).dy,
+              );
+          }
+          stroke(weed, const Color(0xff5fcf8f), 1.8);
+        case DecorKind.almondLeaf:
+          for (final (dx, dy, flip) in [(-8.0, 0.0, 1.0), (10.0, -5.0, -1.0)]) {
+            final leaf = Path()
+              ..moveTo(p(dx - 22 * flip, dy).dx, p(dx - 22 * flip, dy).dy)
+              ..quadraticBezierTo(
+                p(dx, dy - 12).dx,
+                p(dx, dy - 12).dy,
+                p(dx + 22 * flip, dy - 2).dx,
+                p(dx + 22 * flip, dy - 2).dy,
+              )
+              ..quadraticBezierTo(
+                p(dx, dy + 7).dx,
+                p(dx, dy + 7).dy,
+                p(dx - 22 * flip, dy).dx,
+                p(dx - 22 * flip, dy).dy,
+              );
+            solid(leaf, const Color(0xd9a8562a));
+            stroke(
+              Path()
+                ..moveTo(p(dx - 20 * flip, dy).dx, p(dx - 20 * flip, dy).dy)
+                ..lineTo(
+                  p(dx + 20 * flip, dy - 2).dx,
+                  p(dx + 20 * flip, dy - 2).dy,
+                ),
+              const Color(0xffe0a070),
+              1,
+            );
+          }
+        case DecorKind.potCave:
+          final pot = Path()
+            ..addRRect(
+              RRect.fromRectAndRadius(
+                Rect.fromLTRB(
+                  p(-32, -28).dx,
+                  p(-32, -28).dy,
+                  p(22, 0).dx,
+                  p(22, 0).dy,
+                ),
+                Radius.circular(13 * scale),
+              ),
+            );
+          solid(pot, const Color(0xffb8622f));
+          stroke(pot, const Color(0xffeaa071), 1.5);
+          final opening = Path()
+            ..addOval(
+              Rect.fromCenter(
+                center: p(22, -14),
+                width: 18 * scale,
+                height: 28 * scale,
+              ),
+            );
+          solid(opening, const Color(0xff2a1208));
+          stroke(opening, const Color(0xffeaa071), 1.5);
+        case DecorKind.bigShell:
+          final shell = Path()
+            ..addOval(
+              Rect.fromCenter(
+                center: p(0, -14),
+                width: 30 * scale,
+                height: 28 * scale,
+              ),
+            );
+          solid(shell, const Color(0xff7d6a55));
+          stroke(shell, const Color(0xfff0d9b5), 1.6);
+          stroke(
+            Path()
+              ..addArc(
+                Rect.fromCenter(
+                  center: p(1, -14),
+                  width: 16 * scale,
+                  height: 15 * scale,
+                ),
+                0,
+                math.pi * 1.5,
+              )
+              ..addArc(
+                Rect.fromCenter(
+                  center: p(2, -14),
+                  width: 7 * scale,
+                  height: 6 * scale,
+                ),
+                0,
+                math.pi * 1.5,
+              ),
+            const Color(0xfff0d9b5),
+            1.2,
+          );
+      }
+      if (motion.arranging) {
+        final selected = item.id == motion.selectedDecor;
+        line
+          ..color = const Color(
+            0xffffffff,
+          ).withValues(alpha: selected ? .55 + math.sin(time * 4) * .25 : .25)
+          ..strokeWidth = selected ? 2 : 1;
+        canvas.drawCircle(p(0, -18), 40 * scale, line);
       }
     }
   }

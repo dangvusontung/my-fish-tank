@@ -70,6 +70,8 @@ class _PondScreenState extends State<PondScreen> with WidgetsBindingObserver {
   int? _selectedFish;
   bool _zoomed = false;
   Zone _zone = Zone.main;
+  bool _arranging = false;
+  int? _selectedDecor;
 
   /// Heights of the header and the bottom buttons, so the tank can keep its
   /// surface and floor clear of them.
@@ -145,6 +147,26 @@ class _PondScreenState extends State<PondScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Where a new or returning piece lands: spread across the sand so new
+  /// pieces do not stack.
+  double _freeSpot(Pond pond) => .2 + pond.placedDecor.length * .17 % .6;
+
+  void _buyDecor(PondController controller, DecorKind kind) {
+    final pond = controller.pond;
+    final x = _freeSpot(pond);
+    if (!controller.act((pond) => pond.buyDecor(kind, x: x))) return;
+    setState(() => _selectedDecor = pond.decor.last.id);
+  }
+
+  void _placeDecor(PondController controller, Decor item) {
+    final x = _freeSpot(controller.pond);
+    controller.act((pond) {
+      item.moveTo(x, item.y);
+      pond.setPlaced(item.id, true);
+    });
+    setState(() => _selectedDecor = item.id);
+  }
+
   /// Zones worth switching between: the main tank, plus any built or
   /// still holding fish.
   List<Zone> _zones(Pond pond) => [
@@ -173,6 +195,10 @@ class _PondScreenState extends State<PondScreen> with WidgetsBindingObserver {
                 },
                 selectedId: _selectedFish,
                 zone: _zone,
+                arranging: _arranging,
+                selectedDecor: _selectedDecor,
+                onDecorTap: (item) => setState(() => _selectedDecor = item?.id),
+                onDecorMoved: (_) => controller.act((_) {}),
                 overlay: EdgeInsets.only(
                   top: _headerHeight,
                   bottom:
@@ -210,7 +236,7 @@ class _PondScreenState extends State<PondScreen> with WidgetsBindingObserver {
                               child: _TankHeader(controller, _zone),
                             ),
                             if (_zones(controller.pond) case final zones
-                                when zones.length > 1)
+                                when zones.length > 1 && !_arranging)
                               Padding(
                                 padding: const EdgeInsets.only(top: 10),
                                 child: SegmentedButton<Zone>(
@@ -255,7 +281,9 @@ class _PondScreenState extends State<PondScreen> with WidgetsBindingObserver {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (controller.pond.fish
+                          if (_arranging)
+                            const SizedBox.shrink()
+                          else if (controller.pond.fish
                                   .where((fish) => fish.id == _selectedFish)
                                   .firstOrNull
                               case final fish?)
@@ -290,40 +318,92 @@ class _PondScreenState extends State<PondScreen> with WidgetsBindingObserver {
                               if (!mounted) return;
                               setState(() => _buttonsHeight = size.height);
                             },
-                            child: Wrap(
-                              alignment: WrapAlignment.center,
-                              spacing: 10,
-                              runSpacing: 4,
-                              children: [
-                                FilledButton.tonalIcon(
-                                  onPressed: () => _manage(controller),
-                                  icon: Badge(
-                                    isLabelVisible: controller.report != null,
-                                    child: const Icon(Icons.tune, size: 19),
-                                  ),
-                                  label: const Text('Quản lý'),
-                                ),
-                                if (_zoomed)
-                                  IconButton.filledTonal(
-                                    onPressed: () {
-                                      _aquarium.currentState?.resetView();
-                                      setState(() => _selectedFish = null);
+                            child: _arranging
+                                ? _DecorPanel(
+                                    pond: controller.pond,
+                                    selected: _selectedDecor,
+                                    onBuy: (kind) =>
+                                        _buyDecor(controller, kind),
+                                    onPlace: (item) =>
+                                        _placeDecor(controller, item),
+                                    onStore: (item) {
+                                      controller.act(
+                                        (pond) =>
+                                            pond.setPlaced(item.id, false),
+                                      );
+                                      setState(() => _selectedDecor = null);
                                     },
-                                    icon: const Icon(Icons.zoom_out_map),
-                                    tooltip: 'Thu nhỏ',
+                                    onSell: (item) {
+                                      final coins = controller.act(
+                                        (pond) => pond.sellDecor(item.id),
+                                      );
+                                      setState(() => _selectedDecor = null);
+                                      _toast(
+                                        'Đã bán ${item.kind.label.toLowerCase()} · +$coins xu',
+                                      );
+                                    },
+                                    onDone: () => setState(() {
+                                      _arranging = false;
+                                      _selectedDecor = null;
+                                    }),
+                                  )
+                                : Wrap(
+                                    alignment: WrapAlignment.center,
+                                    spacing: 10,
+                                    runSpacing: 4,
+                                    children: [
+                                      FilledButton.tonalIcon(
+                                        onPressed: () => _manage(controller),
+                                        icon: Badge(
+                                          isLabelVisible:
+                                              controller.report != null,
+                                          child: const Icon(
+                                            Icons.tune,
+                                            size: 19,
+                                          ),
+                                        ),
+                                        label: const Text('Quản lý'),
+                                      ),
+                                      // Arranging starts from the whole tank,
+                                      // so a zoomed view offers zooming out.
+                                      if (!_zoomed)
+                                        IconButton.filledTonal(
+                                          onPressed: () {
+                                            _aquarium.currentState?.resetView();
+                                            setState(() {
+                                              _arranging = true;
+                                              _zone = Zone.main;
+                                              _selectedFish = null;
+                                            });
+                                          },
+                                          icon: const Icon(Icons.yard_outlined),
+                                          tooltip: 'Trang trí',
+                                        ),
+                                      if (_zoomed)
+                                        IconButton.filledTonal(
+                                          onPressed: () {
+                                            _aquarium.currentState?.resetView();
+                                            setState(
+                                              () => _selectedFish = null,
+                                            );
+                                          },
+                                          icon: const Icon(Icons.zoom_out_map),
+                                          tooltip: 'Thu nhỏ',
+                                        ),
+                                      FilledButton.icon(
+                                        onPressed:
+                                            controller.pond.inZone(_zone) == 0
+                                            ? null
+                                            : () => _aquarium.currentState
+                                                  ?.feed(),
+                                        icon: const Icon(
+                                          Icons.bubble_chart_outlined,
+                                          size: 19,
+                                        ),
+                                        label: const Text('Rải mồi'),
+                                      ),
+                                    ],
                                   ),
-                                FilledButton.icon(
-                                  onPressed: controller.pond.inZone(_zone) == 0
-                                      ? null
-                                      : () => _aquarium.currentState?.feed(),
-                                  icon: const Icon(
-                                    Icons.bubble_chart_outlined,
-                                    size: 19,
-                                  ),
-                                  label: const Text('Rải mồi'),
-                                ),
-                              ],
-                            ),
                           ),
                         ],
                       ),
@@ -1095,6 +1175,10 @@ class _HandbookEntry extends StatelessWidget {
         ? 'Đẻ con · $clutchLow–${clutchHigh - 1} con/lứa'
         : 'Đẻ trứng · $clutchLow–${clutchHigh - 1} trứng/đợt · ấp '
               '${species.incubation} ngày · nở ~${(species.hatchRate * 100).round()}%';
+    final likes = [
+      for (final kind in DecorKind.values)
+        if (kind.likedBy.contains(species.name)) kind.label,
+    ];
     final status = [
       owned == 0 ? 'Chưa có trong hồ' : '$owned con · $adults trưởng thành',
       if (school > 0 && owned > 0)
@@ -1142,6 +1226,11 @@ class _HandbookEntry extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(species.habit, style: const TextStyle(fontSize: 13)),
+            if (likes.isNotEmpty)
+              Text(
+                'Thích: ${likes.join(', ')}',
+                style: const TextStyle(color: _gold, fontSize: 12),
+              ),
             const SizedBox(height: 4),
             Text(
               '$brood\nTrưởng thành ~${species.adultDays.$1} ngày · '
@@ -1686,5 +1775,162 @@ class _RenderMeasureSize extends RenderProxyBox {
     if (size == _reported) return;
     final current = _reported = size;
     WidgetsBinding.instance.addPostFrameCallback((_) => onChange(current));
+  }
+}
+
+/// The decoration shop and tools shown while arranging the tank.
+class _DecorPanel extends StatelessWidget {
+  const _DecorPanel({
+    required this.pond,
+    required this.selected,
+    required this.onBuy,
+    required this.onPlace,
+    required this.onStore,
+    required this.onSell,
+    required this.onDone,
+  });
+
+  final Pond pond;
+  final int? selected;
+  final ValueChanged<DecorKind> onBuy;
+  final ValueChanged<Decor> onPlace;
+  final ValueChanged<Decor> onStore;
+  final ValueChanged<Decor> onSell;
+  final VoidCallback onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    final piece = pond.decor
+        .where((item) => item.id == selected && item.placed)
+        .firstOrNull;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 640),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xf0112025),
+          border: Border.all(color: _border),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      piece == null
+                          ? 'Kéo đồ trang trí để di chuyển · chạm để chọn'
+                          : '${piece.kind.label} · ${piece.kind.detail}',
+                      style: const TextStyle(fontSize: 12, color: _subtle),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(onPressed: onDone, child: const Text('Xong')),
+                ],
+              ),
+              if (piece != null)
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => onStore(piece),
+                      icon: const Icon(Icons.inventory_2_outlined, size: 18),
+                      label: const Text('Cất vào kho'),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => onSell(piece),
+                      icon: const Icon(Icons.sell_outlined, size: 18),
+                      label: Text('Bán · +${_xu(piece.kind.resale)} xu'),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 6),
+              SizedBox(
+                height: 124,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    for (final kind in DecorKind.values) _shopItem(kind),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _shopItem(DecorKind kind) {
+    final stored = pond.decor
+        .where((item) => item.kind == kind && !item.placed)
+        .toList();
+    final liked = [
+      for (final id in kind.likedBy)
+        if (Species.builtInById[id] case final species?) species.label,
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: SizedBox(
+        width: 132,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: _panel,
+            border: Border.all(color: _border),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(9, 7, 9, 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  kind.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  '+${kind.shelter} chỗ trú',
+                  style: const TextStyle(color: _mint, fontSize: 12),
+                ),
+                Text(
+                  liked.isEmpty ? 'Cho mọi loài' : liked.join(', '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: _subtle, fontSize: 11),
+                ),
+                const Spacer(),
+                SizedBox(
+                  width: double.infinity,
+                  child: stored.isNotEmpty
+                      ? OutlinedButton(
+                          onPressed: () => onPlace(stored.first),
+                          style: OutlinedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                          ),
+                          child: Text('Đặt · kho ${stored.length}'),
+                        )
+                      : OutlinedButton(
+                          onPressed: pond.coins < kind.price
+                              ? null
+                              : () => onBuy(kind),
+                          style: OutlinedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                          ),
+                          child: Text('Mua · ${_xu(kind.price)} xu'),
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

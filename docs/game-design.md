@@ -76,6 +76,20 @@ Màn hiện tại so sánh **xu/phút trung bình trong 30 phút tới** với t
 
 Máy cho ăn hiện chạm ngưỡng **55 giây ở cấp 7**. Đề xuất hiển thị **Tối đa** và khóa mua cấp tiếp theo khi khoảng nghỉ đã chạm ngưỡng. Trước khi cân bằng lại các hệ số, thử hai hồ có tải thấp và cao để xem người chơi có nhận ra tác dụng của từng món ngay sau khi nâng hay chưa.
 
+### Trang trí và chỗ trú
+
+Bấm **Trang trí** để vào chế độ sắp xếp. Mua đồ ở dải cửa hàng dưới đáy, kéo từng món tới chỗ muốn trên nền cát. Chạm một món để **cất vào kho** hoặc **bán lại nửa giá**. Đồ trong kho không có tác dụng. Mọi món đều thêm chỗ trú cho cá con trong bể chính; cá con trốn quanh rêu và các món đã đặt. Sổ tay ghi mỗi loài thích món nào.
+
+| Món | Chỗ trú | Tác dụng | Giá |
+| --- | --- | --- | --- |
+| **Hang đá** | 5 | Cá chuột và phượng hoàng lớn ở gần kiếm thêm 15% xu, mỗi món đỡ tối đa 8 con. Cá thích hay bơi quanh món. | 140 xu |
+| **Lũa gỗ** | 6 | Mỗi khúc thêm một lãnh thổ cho betta trống trong bể chính, nên bớt đánh nhau. | 180 xu |
+| **Đá phẳng** | 2 | Trứng thần tiên và phượng hoàng nở thêm 10% mỗi món, tối đa 20%. | 90 xu |
+| **Bụi rong** | 8 | Neon và sọc ngựa lớn kiếm thêm 15% xu, mỗi món đỡ tối đa 8 con. | 120 xu |
+| **Lá bàng khô** | 3 | Trứng betta và sặc mật ong nở thêm 10% mỗi món, tối đa 20%. | 60 xu |
+| **Hang gốm** | 4 | Chỗ trú chung cho cá con mọi loài. | 100 xu |
+| **Vỏ ốc lớn** | 2 | Thuần trang trí. | 40 xu |
+
 ## Thu nhập, bán cá và giữ giống
 
 - Hồ tạo **xu/phút** khi cá còn trong bể. Bán cá nhận xu ngay. Giá theo loài, giai đoạn phát triển, sức khỏe và đặc điểm cá là hướng thiết kế. Cá giống chất lượng cao đáng giữ cho lứa sau dù có giá bán tốt ngay bây giờ.
@@ -98,7 +112,7 @@ Khi trại đủ lớn, người chơi có thể bàn giao đàn và thiết b�
 | Đã có | Phần phát triển tiếp |
 | --- | --- |
 | Mười loài. Bảy màu, mún đỏ và đuôi kiếm đẻ con. Bảy màu có biến thể Legendary **Đuôi sao chổi**. Các loài đẻ trứng có thời gian ấp, tỷ lệ nở và cá bột hao hụt theo loài, nặng hơn khi hồ đói hoặc bẩn. Neon và sọc ngựa đủ đàn 6 con thì kiếm xu nhiều hơn. Neon cần nước từ 70% và phượng hoàng từ 80% để đẻ. Betta trống thừa không kiếm xu và có thể chết vì đánh nhau. Cá chuột không săn cá con, ăn mồi thừa, trứng nở tốt hơn khi rêu dày. Cặp thần tiên non có thể ăn lứa đầu. **Sổ tay hồ cá** cho xem tập tính và mua cặp giống. | Thêm biến thể và các bậc hiếm khác, sức khỏe riêng, sinh trưởng theo mồi và nước, bể ấp tối cho neon. |
-| Một bể toàn màn hình dọc hoặc ngang. Tất cả cá sống đều được vẽ, mỗi loài có dáng ký tự và cách bơi riêng. Chụm hai ngón để phóng to tối đa 5× và kéo để xem quanh hồ. Giữ lâu vào cá, hoặc chạm khi đang phóng to, để mở thẻ chi tiết: loài, giới tính, tuổi và độ lớn, độ đậm màu, giá, xu/phút, tuổi thọ còn lại. Camera đi theo cá đang chọn. Bảng **Quản lý** gom các chức năng. **Khu ươm** là bể riêng có nước và mồi riêng: cá mới nở tự vào khi còn chỗ, cá lớn không săn được, lớn lên tự về bể chính. **Ngăn betta** nằm trong bể chính, betta trống thừa tự vào ngăn trống nên không đánh nhau. Chuyển xem từng khu bằng nút ở đáy màn hình, chuyển từng con bằng thẻ chi tiết. | Tách khu theo vị trí trong bể chính (mồi và chỗ trú theo khu). |
+| Một bể toàn màn hình dọc hoặc ngang. Tất cả cá sống đều được vẽ, mỗi loài có dáng ký tự và cách bơi riêng. Chụm hai ngón để phóng to tối đa 5× và kéo để xem quanh hồ. Giữ lâu vào cá, hoặc chạm khi đang phóng to, để mở thẻ chi tiết: loài, giới tính, tuổi và độ lớn, độ đậm màu, giá, xu/phút, tuổi thọ còn lại. Camera đi theo cá đang chọn. Bảng **Quản lý** gom các chức năng. **Khu ươm** là bể riêng có nước và mồi riêng: cá mới nở tự vào khi còn chỗ, cá lớn không săn được, lớn lên tự về bể chính. **Ngăn betta** nằm trong bể chính, betta trống thừa tự vào ngăn trống nên không đánh nhau. Chuyển xem từng khu bằng thanh dưới tiêu đề, chuyển từng con bằng thẻ chi tiết. **Trang trí** bằng kéo thả: hang đá, lũa, đá phẳng, bụi rong, lá bàng, hang gốm và vỏ ốc thêm chỗ trú và có tác dụng theo loài. | Tách khu theo vị trí trong bể chính (mồi và chỗ trú theo khu). |
 | Thu xu tự động. Máy cho ăn nâng tốc độ rải, **Kho mồi** nâng dung tích, chọn mức rải Thưa / Vừa / Dày. Lọc, rêu Java, thay nước. Xác cá nằm dưới đáy, chạm để vớt từng con hoặc **Vớt tất cả**. **Ốc ramshorn** rỉa xác kể cả lúc offline. Màn nâng cấp hiện thông số thật của cấp hiện tại → cấp sau, dự báo xu/phút và hoàn vốn bằng cách chạy thử 30 phút, và giải thích khi dự báo không đổi. Máy cho ăn có mức **Tối đa** ở cấp 7. Trong hồ thấy máy cho ăn rải mồi, dòng bọt từ đầu lọc mạnh dần theo cấp và bụi rêu dày lên. | Cây lớn, dịch vụ chăm hồ. |
 | Tìm tối đa một cá giống bảy màu theo biến thể, màu đuôi, độ đậm màu và tuổi. Bán chung cá trưởng thành của mọi loài, có hiển thị số cá Legendary trong lô. **Bán theo lứa** bằng một nút, cá non bán giá thấp hơn tăng dần theo độ lớn, cá bột chưa bán được. **Lịch sử gây giống** trong Nhật ký ghi bố mẹ, số con hoặc trứng → nở, số Legendary và số còn sống của 40 lứa gần nhất. | Vân, sức khỏe và giá theo sức khỏe. |
 | Lưu cục bộ, mô phỏng tối đa 8 giờ, báo cáo tổng hợp gồm trứng, cá nở, hao hụt, đánh nhau và ốc dọn xác, tua 30 ngày. | Nhật ký có nguyên nhân và thời điểm chi tiết. Sang nhượng trại và Danh tiếng. |

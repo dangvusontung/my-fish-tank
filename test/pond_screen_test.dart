@@ -241,4 +241,33 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets('buys a decoration from the arranging shop', (tester) async {
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(const FishTankApp());
+    await tester.pump();
+    await tester.tap(find.byTooltip('Trang trí'));
+    await tester.pump();
+
+    expect(find.text('Hang đá'), findsOneWidget);
+    expect(find.text('Rải mồi'), findsNothing);
+    await tester.tap(find.text('Mua · 140 xu'));
+    await tester.pump();
+    expect(find.text('40 xu'), findsOneWidget);
+    expect(find.text('Cất vào kho'), findsOneWidget);
+
+    await tester.tap(find.text('Cất vào kho'));
+    await tester.pump();
+    expect(find.text('Đặt · kho 1'), findsOneWidget);
+
+    await tester.tap(find.text('Xong'));
+    await tester.pump();
+    expect(find.text('Rải mồi'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }
