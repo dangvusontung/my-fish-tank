@@ -40,6 +40,7 @@ class AquariumState extends State<Aquarium>
   }
 
   void feed([Offset target = const Offset(.51, .51)]) {
+    if (widget.pond.fish.isEmpty) return;
     _motion.drop(target);
     widget.onFeed();
   }
@@ -53,107 +54,29 @@ class AquariumState extends State<Aquarium>
 
   @override
   Widget build(BuildContext context) {
-    final water = widget.pond.water.round();
-    final goodWater = water >= 65;
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      child: SizedBox(
-        height: 308,
-        child: LayoutBuilder(
-          builder: (context, constraints) => Stack(
-            fit: StackFit.expand,
-            children: [
-              Semantics(
-                button: true,
-                label: 'Rải thức ăn vào hồ',
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTapUp: (event) => feed(
-                    Offset(
-                      event.localPosition.dx / constraints.maxWidth,
-                      event.localPosition.dy / constraints.maxHeight,
-                    ),
-                  ),
-                  child: RepaintBoundary(
-                    child: CustomPaint(painter: _AquariumPainter(_motion)),
-                  ),
-                ),
-              ),
-              IgnorePointer(
-                child: Padding(
-                  padding: const EdgeInsets.all(13),
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Flexible(
-                          flex: 2,
-                          child: _BubbleLabel(
-                            'Hồ bảy màu · ${widget.pond.fish.length} cá',
-                            const Color(0xffd9f5ea),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: _BubbleLabel(
-                            'Nước $water%',
-                            goodWater
-                                ? const Color(0xffa0f8d4)
-                                : const Color(0xffffbc81),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const IgnorePointer(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: EdgeInsets.only(bottom: 12),
-                    child: _BubbleLabel(
-                      'Chạm vào mặt nước để thả mồi',
-                      Color(0xffbfd8d1),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) => Semantics(
+        button: true,
+        label: 'Rải thức ăn vào hồ',
+        onTap: () => feed(),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          excludeFromSemantics: true,
+          onTapUp: (event) => feed(
+            Offset(
+              event.localPosition.dx / constraints.maxWidth,
+              event.localPosition.dy / constraints.maxHeight,
+            ),
+          ),
+          child: SizedBox.expand(
+            child: RepaintBoundary(
+              child: CustomPaint(painter: _AquariumPainter(_motion)),
+            ),
           ),
         ),
       ),
     );
   }
-}
-
-class _BubbleLabel extends StatelessWidget {
-  const _BubbleLabel(this.text, this.color);
-
-  final String text;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: const Color(0xdd0a2028),
-      border: Border.all(color: const Color(0xff31575a)),
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 9),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          color: color,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    ),
-  );
 }
 
 class _Pose {
@@ -181,7 +104,7 @@ class _TankMotion extends ChangeNotifier {
   void drop(Offset point) {
     target = Offset(
       point.dx.clamp(.08, .92).toDouble(),
-      point.dy.clamp(.28, .78).toDouble(),
+      point.dy.clamp(.13, .87).toDouble(),
     );
     droppedAt = time;
     notifyListeners();
@@ -345,7 +268,7 @@ class _AquariumPainter extends CustomPainter {
     const detailedFish = 24;
     final density = math.max(1, motion.poses.length / detailedFish);
     final spriteScale =
-        (size.width / 420).clamp(.77, 1.24) *
+        (size.shortestSide / 420).clamp(.77, 1.24) *
         (1 / math.sqrt(density)).clamp(.42, 1);
     var index = 0;
     for (final pose in motion.poses.values) {

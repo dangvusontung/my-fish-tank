@@ -101,207 +101,105 @@ class _PondScreenState extends State<PondScreen> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _manage(PondController controller) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      constraints: const BoxConstraints(maxWidth: 640),
+      backgroundColor: _base,
+      builder: (_) => FractionallySizedBox(
+        heightFactor: .88,
+        child: _ManagementSheet(controller: controller),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
     return Scaffold(
-      body: SafeArea(
-        child: controller == null
-            ? const Center(child: CircularProgressIndicator())
-            : ListenableBuilder(
-                listenable: controller,
-                builder: (context, _) {
-                  final pond = controller.pond;
-                  return Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 660),
-                      child: ListView(
-                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 28),
-                        children: [
-                          _Header(pond),
-                          if (controller.saveFailed)
-                            const Padding(
-                              padding: EdgeInsets.only(bottom: 10),
-                              child: Text(
-                                'Chưa lưu được hồ. Game sẽ thử lại.',
-                                style: TextStyle(color: _gold),
-                              ),
-                            ),
-                          if (controller.report case final report?)
-                            _ReportPanel(
-                              title: controller.reportTitle,
-                              report: report,
-                              onDismiss: controller.dismissReport,
-                            ),
-                          _Card(
-                            padding: EdgeInsets.zero,
-                            child: Column(
-                              children: [
-                                Aquarium(
-                                  key: _aquarium,
-                                  pond: pond,
-                                  onFeed: () => _feed(controller),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    10,
-                                    13,
-                                    10,
-                                    11,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      _Stat('Cá lớn', '${pond.adultCount}'),
-                                      _Stat('Cá non', '${pond.juvenileCount}'),
-                                      _Stat(
-                                        'No bụng',
-                                        '${pond.satiety.round()}%',
-                                      ),
-                                      _Stat(
-                                        'Xu/phút',
-                                        pond.income.toStringAsFixed(1),
-                                        color: _gold,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const Divider(height: 1, color: _border),
-                                Padding(
-                                  padding: const EdgeInsets.all(10),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: FilledButton.icon(
-                                          icon: const Icon(
-                                            Icons.bubble_chart_outlined,
-                                            size: 19,
-                                          ),
-                                          onPressed: pond.fish.isEmpty
-                                              ? null
-                                              : () => _aquarium.currentState
-                                                    ?.feed(),
-                                          label: const Text('Rải mồi'),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: OutlinedButton(
-                                          onPressed: controller.testThirtyDays,
-                                          child: const Text('Tua 30 ngày'),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _Market(
-                            pond: pond,
-                            onPreference: (tail) => controller.act(
-                              (pond) => pond.preference = tail,
-                            ),
-                            onPair: () =>
-                                controller.act((pond) => pond.repairBreeders()),
-                            onSell: (keep) {
-                              final (count, coins) = controller.act(
-                                (pond) => pond.sell(keepCandidate: keep),
-                              );
-                              if (count > 0) {
-                                _toast(
-                                  keep
-                                      ? 'Đã giữ giống · +$coins xu'
-                                      : 'Đã bán $count cá · +$coins xu',
-                                );
-                              }
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          _Care(pond: pond, controller: controller),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Nâng cấp',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          _Card(
-                            child: Column(
-                              children: [
-                                for (final equipment in Equipment.values)
-                                  _Upgrade(
-                                    equipment: equipment,
-                                    pond: pond,
-                                    onPressed: () => controller.act(
-                                      (pond) => pond.upgrade(equipment),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            '${Pond.daySeconds ~/ 60} phút ngoài đời ≈ 1 ngày trong hồ · Offline tối đa 8 giờ',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 12, color: _subtle),
-                          ),
-                        ],
+      body: controller == null
+          ? const Center(child: CircularProgressIndicator())
+          : ListenableBuilder(
+              listenable: controller,
+              child: Aquarium(
+                key: _aquarium,
+                pond: controller.pond,
+                onFeed: () => _feed(controller),
+              ),
+              builder: (context, aquarium) => Stack(
+                fit: StackFit.expand,
+                children: [
+                  aquarium!,
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: SafeArea(
+                        bottom: false,
+                        minimum: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        child: _TankHeader(controller),
                       ),
                     ),
-                  );
-                },
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: SafeArea(
+                      top: false,
+                      minimum: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 10,
+                          runSpacing: 4,
+                          children: [
+                            FilledButton.tonalIcon(
+                              onPressed: () => _manage(controller),
+                              icon: Badge(
+                                isLabelVisible: controller.report != null,
+                                child: const Icon(Icons.tune, size: 19),
+                              ),
+                              label: const Text('Quản lý'),
+                            ),
+                            FilledButton.icon(
+                              onPressed: controller.pond.fish.isEmpty
+                                  ? null
+                                  : () => _aquarium.currentState?.feed(),
+                              icon: const Icon(
+                                Icons.bubble_chart_outlined,
+                                size: 19,
+                              ),
+                              label: const Text('Rải mồi'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-      ),
+            ),
     );
   }
 }
 
-class _Card extends StatelessWidget {
-  const _Card({required this.child, this.padding = const EdgeInsets.all(13)});
-  final Widget child;
-  final EdgeInsetsGeometry padding;
+class _TankHeader extends StatelessWidget {
+  const _TankHeader(this.controller);
+
+  final PondController controller;
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: _panel,
-      border: Border.all(color: _border),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Padding(padding: padding, child: child),
-  );
-}
-
-class _Header extends StatelessWidget {
-  const _Header(this.pond);
-  final Pond pond;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: Row(
+  Widget build(BuildContext context) {
+    final pond = controller.pond;
+    final water = pond.water.round();
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: const Color(0xff183c33),
-            borderRadius: BorderRadius.circular(13),
-          ),
-          alignment: Alignment.center,
-          child: const Text(
-            '»',
-            style: TextStyle(
-              color: _mint,
-              fontSize: 27,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -311,39 +209,239 @@ class _Header extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
-                  height: 1.1,
+                  height: 1.10,
                 ),
               ),
+              const SizedBox(height: 3),
               Text(
-                'Ngày ${pond.day} trong hồ',
-                style: const TextStyle(color: _subtle, fontSize: 12),
+                'Ngày ${pond.day} · ${pond.fish.length} cá',
+                style: const TextStyle(color: _subtle, fontSize: 13),
               ),
+              if (controller.saveFailed)
+                const Text(
+                  'Chưa lưu được hồ',
+                  style: TextStyle(color: _gold, fontSize: 12),
+                ),
             ],
           ),
         ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xff30241a),
-            border: Border.all(color: const Color(0xff56402c)),
-            borderRadius: BorderRadius.circular(13),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.diamond_outlined, color: _gold, size: 16),
-              const SizedBox(width: 5),
-              Text(
-                '${pond.coins.floor()} xu',
-                style: const TextStyle(
-                  color: _gold,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+        const SizedBox(width: 8),
+        Flexible(
+          child: Align(
+            alignment: Alignment.topRight,
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 6,
+              runSpacing: 5,
+              children: [
+                _TankBadge('Nước $water%', water >= 65 ? _mint : _gold),
+                _TankBadge('${pond.coins.floor()} xu', _gold),
+              ],
+            ),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _TankBadge extends StatelessWidget {
+  const _TankBadge(this.label, this.tint);
+
+  final String label;
+  final Color tint;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: const Color(0xe50b2228),
+      border: Border.all(color: tint.withValues(alpha: .34)),
+      borderRadius: BorderRadius.circular(24),
     ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: tint,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ),
+  );
+}
+
+class _ManagementSheet extends StatefulWidget {
+  const _ManagementSheet({required this.controller});
+
+  final PondController controller;
+
+  @override
+  State<_ManagementSheet> createState() => _ManagementSheetState();
+}
+
+class _ManagementSheetState extends State<_ManagementSheet> {
+  String? _saleMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = widget.controller;
+    return DefaultTabController(
+      length: 4,
+      initialIndex: controller.report == null ? 0 : 3,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 8, 0),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Quản lý hồ',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Đóng quản lý',
+                  ),
+                ],
+              ),
+            ),
+            const TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              tabs: [
+                Tab(text: 'Chợ cá'),
+                Tab(text: 'Chăm hồ'),
+                Tab(text: 'Nâng cấp'),
+                Tab(text: 'Nhật ký'),
+              ],
+            ),
+            Expanded(
+              child: ListenableBuilder(
+                listenable: controller,
+                builder: (context, _) {
+                  final pond = controller.pond;
+                  return TabBarView(
+                    children: [
+                      _page('market', [
+                        _Market(
+                          pond: pond,
+                          saleMessage: _saleMessage,
+                          onPreference: (tail) =>
+                              controller.act((pond) => pond.preference = tail),
+                          onPair: () =>
+                              controller.act((pond) => pond.repairBreeders()),
+                          onSell: _sell,
+                        ),
+                      ]),
+                      _page('care', [
+                        _Card(
+                          child: Row(
+                            children: [
+                              _Stat('Cá lớn', '${pond.adultCount}'),
+                              _Stat('Cá non', '${pond.juvenileCount}'),
+                              _Stat('No bụng', '${pond.satiety.round()}%'),
+                              _Stat(
+                                'Xu/phút',
+                                pond.income.toStringAsFixed(1),
+                                color: _gold,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        _Care(pond: pond, controller: controller),
+                      ]),
+                      _page('upgrades', [
+                        _Card(
+                          child: Column(
+                            children: [
+                              for (final equipment in Equipment.values)
+                                _Upgrade(
+                                  equipment: equipment,
+                                  pond: pond,
+                                  onPressed: () => controller.act(
+                                    (pond) => pond.upgrade(equipment),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ]),
+                      _page('journal', [
+                        if (controller.report case final report?)
+                          _ReportPanel(
+                            title: controller.reportTitle,
+                            report: report,
+                            onDismiss: controller.dismissReport,
+                          ),
+                        OutlinedButton.icon(
+                          onPressed: controller.testThirtyDays,
+                          icon: const Icon(
+                            Icons.fast_forward_outlined,
+                            size: 20,
+                          ),
+                          label: const Text('Tua 30 ngày'),
+                        ),
+                        const Text(
+                          '${Pond.daySeconds ~/ 60} phút ngoài đời ≈ 1 ngày trong hồ · Offline tối đa 8 giờ',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: _subtle, fontSize: 12),
+                        ),
+                      ]),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  ListView _page(String name, List<Widget> children) => ListView(
+    key: PageStorageKey(name),
+    padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+    children: children,
+  );
+
+  void _sell(bool keep) {
+    final (count, coins) = widget.controller.act(
+      (pond) => pond.sell(keepCandidate: keep),
+    );
+    if (count == 0) return;
+    setState(() {
+      _saleMessage = keep
+          ? 'Đã giữ giống · +$coins xu'
+          : 'Đã bán $count cá · +$coins xu';
+    });
+  }
+}
+
+class _Card extends StatelessWidget {
+  const _Card({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: _panel,
+      border: Border.all(color: _border),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Padding(padding: const EdgeInsets.all(13), child: child),
   );
 }
 
@@ -381,11 +479,13 @@ class _Market extends StatelessWidget {
     required this.onPreference,
     required this.onPair,
     required this.onSell,
+    required this.saleMessage,
   });
   final Pond pond;
   final ValueChanged<Tail> onPreference;
   final VoidCallback onPair;
   final ValueChanged<bool> onSell;
+  final String? saleMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -395,19 +495,9 @@ class _Market extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Chợ cá',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-                ),
-              ),
-              Text(
-                '$ready cá sẵn sàng bán',
-                style: const TextStyle(color: _subtle),
-              ),
-            ],
+          Text(
+            '$ready cá sẵn sàng bán',
+            style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -476,6 +566,14 @@ class _Market extends StatelessWidget {
                   : 'Bán $ready cá · +${pond.saleValue} xu',
             ),
           ),
+          if (saleMessage case final message?)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Semantics(
+                liveRegion: true,
+                child: Text(message, style: const TextStyle(color: _mint)),
+              ),
+            ),
           if (pond.breeders.length < 2)
             TextButton(
               onPressed: onPair,
@@ -500,11 +598,6 @@ class _Care extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Chăm hồ',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 5),
           Text(
             '${pond.sheltered} chỗ trú · ${feeder ? '${pond.stock} phần mồi' : 'Máy chưa lắp'}'
             '\n${pond.breeders.length == 2 ? 'Lứa sau dự kiến sau ${pond.daysToLitter} ngày.' : 'Ghép một cặp cá giống để có lứa mới.'}',

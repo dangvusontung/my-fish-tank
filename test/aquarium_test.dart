@@ -16,6 +16,7 @@ void main() {
         child: Center(
           child: SizedBox(
             width: 362,
+            height: 308,
             child: Aquarium(pond: pond, onFeed: () {}),
           ),
         ),
@@ -34,6 +35,5 @@ void main() {
       (Canvas canvas) => tank.painter!.paint(canvas, const Size(362, 308)),
       paintsExactlyCountTimes(#save, pond.fish.length),
     );
-    expect(find.text('Hồ bảy màu · ${pond.fish.length} cá'), findsOneWidget);
   });
 }

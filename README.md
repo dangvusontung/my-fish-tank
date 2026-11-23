@@ -17,7 +17,9 @@ flutter pub get
 flutter run
 ```
 
-Trong game, **Tua 30 ngày** cho phép thử vòng sinh sản và lên lứa ngay. Đây là thời gian mô phỏng. Bình thường, 2 phút ngoài đời tương ứng một ngày trong hồ.
+Hồ phủ màn hình ở cả chiều dọc và ngang. Bấm **Quản lý** để mở chợ cá, chăm hồ, nâng cấp hoặc nhật ký.
+
+Trong **Quản lý → Nhật ký**, nút **Tua 30 ngày** cho phép thử vòng sinh sản và lên lứa ngay. Bình thường, 2 phút ngoài đời tương ứng một ngày trong hồ.
 
 ## Kiểm tra và đóng gói
 
