@@ -10,7 +10,7 @@ Game idle hồ cá nước ngọt viết bằng Flutter. Bản đầu tập trun
 
 ## Chạy trên Android
 
-Cài Flutter stable và hoàn tất môi trường Android theo [hướng dẫn Flutter](https://docs.flutter.dev/platform-integration/android/setup). Bản này dùng Flutter 3.41 trở lên.
+Cài Flutter stable và hoàn tất môi trường Android theo [hướng dẫn Flutter](https://docs.flutter.dev/platform-integration/android/setup). Bản này dùng Flutter 3.50 trở lên.
 
 ```sh
 flutter pub get
