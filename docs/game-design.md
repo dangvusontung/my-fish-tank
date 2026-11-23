@@ -48,6 +48,22 @@ Mỗi con có tuổi, giới tính, màu hoặc vân, sức khỏe và vòng đ�
 
 Rong đuôi chó, sen súng đỏ, trang trí theo nhóm cá và hai ô trồng cây ở bể đầu là các ý tưởng từng đề xuất. Rong tạo thức ăn và sen tăng thu nhập cá hiếm là các phương án thử gameplay. Tác dụng cuối của hai cây này còn mở. Đề xuất nâng cấp sức chứa ban đầu được thay bằng thiết kế **bể vô hạn**. Tải lọc, mồi và chỗ trú tạo ra quyết định nâng cấp.
 
+### Làm tác dụng nâng cấp dễ thấy hơn
+
+Màn hiện tại so sánh **xu/phút trung bình trong 30 phút tới** với trạng thái hồ lúc xem. Hồ còn ít cá có thể đủ lọc và đủ mồi, nên dự báo gần như ngang nhau. Kho lớn chỉ phát huy sau khi nạp thêm. Rêu và ốc có tác dụng khi có cá non, trứng cá chuột hoặc xác cá. Dự báo 30 phút đôi khi chưa đi qua những sự kiện đó.
+
+**Đề xuất để duyệt.** Ngay dưới tên nâng cấp, hiện thông số thật của cấp hiện tại và cấp tiếp theo. Giữ dự báo thu nhập ở dòng riêng. Khi dự báo gần như ngang nhau, giải thích bằng trạng thái của hồ nếu xác định được, chẳng hạn *“Bộ lọc hiện tại đã đủ cho đàn này”* hoặc *“Nạp thêm mồi để dùng sức chứa mới”*.
+
+| Nâng cấp | Ví dụ trước → sau từ công thức hiện tại | Dấu hiệu đề xuất |
+| --- | --- | --- |
+| **Máy cho ăn** | Nghỉ tối thiểu **3 phút 55 giây → 3 phút 20 giây** giữa hai lần rải khi lên cấp 1 → 2. Chế độ Thưa, Vừa hoặc Dày vẫn quyết định cá phải đói tới mức nào. | Thấy máy trên thành bể và thấy mồi rơi đúng lúc máy rải. |
+| **Kho mồi** | **26 → 46 phần mồi** ở lần nâng đầu. Lượng mồi đang có giữ nguyên đến lần nạp tiếp theo. | Hiện lượng mồi đang có trên dung tích để nhận ra kho đã lớn hơn. |
+| **Bộ lọc** | Riêng công suất lọc ở cấp 1 → 2 tăng **0,54 → 1,08 điểm chất lượng nước/phút**, trước khi trừ chất thải. Chất lượng nước tối đa là **100%**. | Thấy dòng nước hoặc bọt từ đầu lọc. Dòng mạnh hơn khi lên cấp. |
+| **Rêu Java** | **7 → 14 cá non có chỗ trú** ở cấp 1 → 2. Mỗi cấp cũng thêm **6 điểm phần trăm** vào tỷ lệ nở cơ sở của trứng cá chuột, với trần cơ sở **80%**. | Bụi rêu dày hoặc rộng hơn ngay sau khi nâng. |
+| **Ốc ramshorn** | **0 → 3 con** khi mua lần đầu. Mỗi cấp thêm **3 con** cùng dọn xác. | Thấy ốc mới xuất hiện dưới đáy và bò về phía xác. |
+
+Máy cho ăn hiện chạm ngưỡng **55 giây ở cấp 7**. Đề xuất hiển thị **Tối đa** và khóa mua cấp tiếp theo khi khoảng nghỉ đã chạm ngưỡng. Trước khi cân bằng lại các hệ số, thử hai hồ có tải thấp và cao để xem người chơi có nhận ra tác dụng của từng món ngay sau khi nâng hay chưa.
+
 ## Thu nhập, bán cá và giữ giống
 
 - Hồ tạo **xu/phút** khi cá còn trong bể. Bán cá nhận xu ngay. Giá theo loài, giai đoạn phát triển, sức khỏe và đặc điểm cá là hướng thiết kế. Cá giống chất lượng cao đáng giữ cho lứa sau dù có giá bán tốt ngay bây giờ.
