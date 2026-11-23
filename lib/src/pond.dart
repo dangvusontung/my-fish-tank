@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'species.dart';
+import 'species_catalog.dart';
 
 export 'species.dart';
 
@@ -61,10 +62,15 @@ enum Zone {
   final String label;
 }
 
+Species _speciesById(String id, Map<String, Species>? definitions) =>
+    definitions?[id] ??
+    Species.builtInById[id] ??
+    (throw FormatException('Unknown saved fish species $id'));
+
 class Fish {
   Fish({
     required this.id,
-    this.species = Species.guppy,
+    this._species = Species.guppy,
     required this.sex,
     required this.tail,
     required this.bornAt,
@@ -76,9 +82,12 @@ class Fish {
     this.litter,
   });
 
-  factory Fish.fromJson(Map<String, dynamic> json) => Fish(
+  factory Fish.fromJson(
+    Map<String, dynamic> json, {
+    Map<String, Species>? definitions,
+  }) => Fish(
     id: json['id'] as int,
-    species: Species.values.byName(json['species'] as String? ?? 'guppy'),
+    species: _speciesById(json['species'] as String? ?? 'guppy', definitions),
     sex: Sex.values.byName(json['sex'] as String),
     tail: Tail.values.byName(json['tail'] as String),
     bornAt: (json['bornAt'] as num).toDouble(),
@@ -91,7 +100,8 @@ class Fish {
   );
 
   final int id;
-  final Species species;
+  Species _species;
+  Species get species => _species;
   final Sex sex;
   final Tail tail;
   final double bornAt;
@@ -133,16 +143,19 @@ class Fish {
 class Corpse {
   Corpse({
     required this.id,
-    required this.species,
+    required this._species,
     required this.tail,
     required this.diedAt,
     this.remains = 1,
     this.zone = Zone.main,
   });
 
-  factory Corpse.fromJson(Map<String, dynamic> json) => Corpse(
+  factory Corpse.fromJson(
+    Map<String, dynamic> json, {
+    Map<String, Species>? definitions,
+  }) => Corpse(
     id: json['id'] as int,
-    species: Species.values.byName(json['species'] as String),
+    species: _speciesById(json['species'] as String, definitions),
     tail: Tail.values.byName(json['tail'] as String),
     diedAt: (json['diedAt'] as num).toDouble(),
     remains: (json['remains'] as num).toDouble(),
@@ -150,7 +163,8 @@ class Corpse {
   );
 
   final int id;
-  final Species species;
+  Species _species;
+  Species get species => _species;
   final Tail tail;
   final double diedAt;
   final Zone zone;
@@ -171,9 +185,9 @@ class Corpse {
 
 /// Eggs from one spawning, hatching all at once at [hatchAt].
 class Clutch {
-  const Clutch({
+  Clutch({
     required this.id,
-    required this.species,
+    required this._species,
     required this.eggs,
     required this.hatchAt,
     required this.tails,
@@ -181,9 +195,12 @@ class Clutch {
     this.parents = const [],
   });
 
-  factory Clutch.fromJson(Map<String, dynamic> json) => Clutch(
+  factory Clutch.fromJson(
+    Map<String, dynamic> json, {
+    Map<String, Species>? definitions,
+  }) => Clutch(
     id: json['id'] as int,
-    species: Species.values.byName(json['species'] as String),
+    species: _speciesById(json['species'] as String, definitions),
     eggs: json['eggs'] as int,
     hatchAt: (json['hatchAt'] as num).toDouble(),
     tails: [
@@ -195,7 +212,8 @@ class Clutch {
   );
 
   final int id;
-  final Species species;
+  Species _species;
+  Species get species => _species;
   final int eggs;
   final double hatchAt;
 
@@ -219,7 +237,7 @@ class Clutch {
 class Litter {
   Litter({
     required this.id,
-    required this.species,
+    required this._species,
     required this.bornAt,
     required this.parents,
     required this.tails,
@@ -228,9 +246,12 @@ class Litter {
     this.comets = 0,
   });
 
-  factory Litter.fromJson(Map<String, dynamic> json) => Litter(
+  factory Litter.fromJson(
+    Map<String, dynamic> json, {
+    Map<String, Species>? definitions,
+  }) => Litter(
     id: json['id'] as int,
-    species: Species.values.byName(json['species'] as String),
+    species: _speciesById(json['species'] as String, definitions),
     bornAt: (json['bornAt'] as num).toDouble(),
     parents: (json['parents'] as List<dynamic>).cast<int>(),
     tails: [
@@ -243,7 +264,8 @@ class Litter {
   );
 
   final int id;
-  final Species species;
+  Species _species;
+  Species get species => _species;
   final double bornAt;
   final List<int> parents;
   final List<Tail> tails;
@@ -301,10 +323,12 @@ class PondReport {
 }
 
 class Pond {
-  Pond();
+  Pond({SpeciesCatalog? catalog}) {
+    if (catalog != null) applyCatalog(catalog);
+  }
 
-  factory Pond.starter() {
-    final pond = Pond();
+  factory Pond.starter({SpeciesCatalog? catalog}) {
+    final pond = Pond(catalog: catalog);
     pond._addFish(age: 103, sex: Sex.male, tail: Tail.amber, vividness: 62);
     pond._addFish(age: 114, sex: Sex.female, tail: Tail.violet, vividness: 65);
     pond.breeders.addAll({1, 2});
@@ -313,11 +337,12 @@ class Pond {
       pond._addFish(age: 80 + i * 3);
       pond._addFish(age: 22 + i * 8);
     }
-    pond.nextLitter[Species.guppy] = 4 * daySeconds.toDouble();
+    pond.nextLitter[pond._knownSpecies[Species.guppy.name]!] =
+        4 * daySeconds.toDouble();
     return pond;
   }
 
-  factory Pond.fromJson(Map<String, dynamic> json) {
+  factory Pond.fromJson(Map<String, dynamic> json, {SpeciesCatalog? catalog}) {
     final version = json['version'];
     if (version != 1 && version != 2) {
       throw const FormatException('Save version');
@@ -333,6 +358,16 @@ class Pond {
       ..nextId = json['nextId'] as int
       ..seed = json['seed'] as int
       ..preference = Tail.values.byName(json['preference'] as String);
+    final definitions = pond._knownSpecies;
+    for (final value
+        in json['speciesDefinitions'] as List<dynamic>? ?? const []) {
+      final species = Species.fromJson(value as Map<String, dynamic>);
+      definitions[species.name] = species;
+    }
+    if (catalog != null) {
+      pond._catalog = catalog;
+      definitions.addAll(catalog.byId);
+    }
     pond.raritySeed = json['raritySeed'] as int? ?? pond.raritySeed;
     final levels = json['levels'] as Map<String, dynamic>;
     for (final equipment in Equipment.values) {
@@ -341,16 +376,20 @@ class Pond {
     pond.breeders.addAll((json['breeders'] as List<dynamic>).cast<int>());
     pond.fish.addAll(
       (json['fish'] as List<dynamic>).map(
-        (value) => Fish.fromJson(value as Map<String, dynamic>),
+        (value) => Fish.fromJson(
+          value as Map<String, dynamic>,
+          definitions: definitions,
+        ),
       ),
     );
     if (version == 1) {
-      pond.nextLitter[Species.guppy] = (json['nextLitter'] as num).toDouble();
+      pond.nextLitter[pond._knownSpecies[Species.guppy.name]!] =
+          (json['nextLitter'] as num).toDouble();
       for (var i = json['dead'] as int; i > 0; i--) {
         pond.corpses.add(
           Corpse(
             id: pond.nextId++,
-            species: Species.guppy,
+            species: definitions[Species.guppy.name]!,
             tail: Tail.amber,
             diedAt: pond.time,
           ),
@@ -367,24 +406,34 @@ class Pond {
       ..nextLitterId = json['nextLitterId'] as int? ?? 1;
     pond.litters.addAll(
       (json['litters'] as List<dynamic>? ?? const []).map(
-        (value) => Litter.fromJson(value as Map<String, dynamic>),
+        (value) => Litter.fromJson(
+          value as Map<String, dynamic>,
+          definitions: definitions,
+        ),
       ),
     );
     for (final entry in (json['nextLitter'] as Map<String, dynamic>).entries) {
-      pond.nextLitter[Species.values.byName(entry.key)] = (entry.value as num)
-          .toDouble();
+      pond.nextLitter[_speciesById(entry.key, definitions)] =
+          (entry.value as num).toDouble();
     }
     for (final entry in (json['pairSpawns'] as Map<String, dynamic>).entries) {
-      pond.pairSpawns[Species.values.byName(entry.key)] = entry.value as int;
+      pond.pairSpawns[_speciesById(entry.key, definitions)] =
+          entry.value as int;
     }
     pond.corpses.addAll(
       (json['corpses'] as List<dynamic>).map(
-        (value) => Corpse.fromJson(value as Map<String, dynamic>),
+        (value) => Corpse.fromJson(
+          value as Map<String, dynamic>,
+          definitions: definitions,
+        ),
       ),
     );
     pond.clutches.addAll(
       (json['clutches'] as List<dynamic>).map(
-        (value) => Clutch.fromJson(value as Map<String, dynamic>),
+        (value) => Clutch.fromJson(
+          value as Map<String, dynamic>,
+          definitions: definitions,
+        ),
       ),
     );
     return pond;
@@ -397,6 +446,28 @@ class Pond {
   static const nurseryRoomPerLevel = 60;
   static const cupsPerLevel = 2;
   static const keptLitters = 40;
+
+  SpeciesCatalog _catalog = SpeciesCatalog.builtIn;
+  final _knownSpecies = Map<String, Species>.of(Species.builtInById);
+
+  SpeciesCatalog get catalog => _catalog;
+
+  void applyCatalog(SpeciesCatalog catalog) {
+    _catalog = catalog;
+    _knownSpecies.addAll(catalog.byId);
+    for (final item in fish) {
+      item._species = _knownSpecies[item.species.name] ?? item.species;
+    }
+    for (final item in corpses) {
+      item._species = _knownSpecies[item.species.name] ?? item.species;
+    }
+    for (final item in clutches) {
+      item._species = _knownSpecies[item.species.name] ?? item.species;
+    }
+    for (final item in litters) {
+      item._species = _knownSpecies[item.species.name] ?? item.species;
+    }
+  }
 
   final List<Fish> fish = [];
   final List<Corpse> corpses = [];
@@ -463,6 +534,18 @@ class Pond {
       (item.zone == Zone.nursery) == (zone == Zone.nursery);
   int get eggCount => clutches.fold(0, (total, clutch) => total + clutch.eggs);
   double get income => _income(time);
+
+  /// Built-in species retain their original tick order across catalog updates.
+  Iterable<Species> get scheduledSpecies sync* {
+    for (final species in Species.builtIn) {
+      if (nextLitter.containsKey(species)) yield _knownSpecies[species.name]!;
+    }
+    for (final species in nextLitter.keys) {
+      if (!Species.builtInById.containsKey(species.name)) {
+        yield _knownSpecies[species.name] ?? species;
+      }
+    }
+  }
 
   /// Species with at least one living fish in the tank.
   Set<Species> get ownedSpecies => {for (final item in fish) item.species};
@@ -596,13 +679,9 @@ class Pond {
         nursery * health(nurserySatiety, nurseryWater);
   }
 
-  double _hatchRate(Species species) => switch (species) {
-    Species.corydoras => math.min(
-      .8,
-      species.hatchRate + levels[Equipment.javaMoss]! * .06,
-    ),
-    _ => species.hatchRate,
-  };
+  double _hatchRate(Species species) => species == Species.corydoras
+      ? math.min(.8, species.hatchRate + levels[Equipment.javaMoss]! * .06)
+      : species.hatchRate;
 
   int _random(int upperBound) {
     seed = (1664525 * seed + 1013904223) & 0xffffffff;
@@ -631,6 +710,7 @@ class Pond {
     Zone zone = Zone.main,
     int? litter,
   }) {
+    species = _knownSpecies[species.name] ?? species;
     fish.add(
       Fish(
         id: nextId++,
@@ -817,7 +897,7 @@ class Pond {
     _cull(step, report);
     _house(report);
     _fight(step, report);
-    for (final species in Species.values) {
+    for (final species in scheduledSpecies) {
       _spawn(species, report);
     }
     _hatch(report);
@@ -1132,7 +1212,8 @@ class Pond {
     levels[equipment] = levels[equipment]! + 1;
   }
 
-  Pond copy() => Pond.fromJson(toJson());
+  Pond copy() =>
+      Pond.fromJson(toJson(), catalog: _catalog.revision > 0 ? _catalog : null);
 
   /// Average coins per minute over [horizon], without and with one more
   /// level of [equipment], simulated on copies of this pond.
@@ -1222,8 +1303,12 @@ class Pond {
   }
 
   bool buyPair(Species species) {
-    if (coins < species.pairCost) return false;
-    coins -= species.pairCost;
+    final listing = _catalog.byId[species.name];
+    if (listing == null || !listing.available || coins < listing.pairCost) {
+      return false;
+    }
+    species = _knownSpecies[listing.name]!;
+    coins -= listing.pairCost;
     final pairComplete = pairOf(species).length == 2;
     for (final sex in Sex.values) {
       _addFish(species: species, age: species.adultDays.$2 + 2, sex: sex);
@@ -1302,8 +1387,26 @@ class Pond {
     return (sale.length, total);
   }
 
+  List<Map<String, Object>> _savedDefinitions() {
+    final used = {
+      for (final item in fish) item.species,
+      for (final item in corpses) item.species,
+      for (final item in clutches) item.species,
+      for (final item in litters) item.species,
+      ...nextLitter.keys,
+      ...pairSpawns.keys,
+    };
+    return [
+      for (final species in used)
+        if ((_knownSpecies[species.name] ?? species) case final definition
+            when !identical(definition, Species.builtInById[species.name]))
+          definition.toJson(),
+    ];
+  }
+
   Map<String, Object> toJson() => {
     'version': 2,
+    'speciesDefinitions': _savedDefinitions(),
     'time': time,
     'coins': coins,
     'satiety': satiety,

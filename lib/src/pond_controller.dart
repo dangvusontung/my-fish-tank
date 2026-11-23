@@ -5,33 +5,54 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'pond.dart';
+import 'species_catalog.dart';
+
+typedef CatalogLoader = Future<String> Function();
 
 class PondController extends ChangeNotifier {
-  PondController._(this.pond, this._preferences, this._applied);
+  PondController._(
+    this.pond,
+    this._preferences,
+    this._applied,
+    this._loadCatalog,
+  );
 
   static const _key = 'pond-v1';
+  static const _catalogKey = 'fish-catalog-v1';
 
   final Pond pond;
   final SharedPreferencesAsync _preferences;
+  final CatalogLoader? _loadCatalog;
   DateTime _applied;
   Timer? _timer;
   Future<void> _writes = Future.value();
   int _ticks = 0;
   bool saveFailed = false;
   bool _disposed = false;
+  bool _refreshingCatalog = false;
 
   PondReport? report;
   String reportTitle = '';
 
-  static Future<PondController> load() async {
+  static Future<PondController> load({CatalogLoader? loadCatalog}) async {
     final preferences = SharedPreferencesAsync();
-    var pond = Pond.starter();
+    SpeciesCatalog? catalog;
+    try {
+      final cached = await preferences.getString(_catalogKey);
+      if (cached != null) catalog = SpeciesCatalog.decode(cached);
+    } catch (error) {
+      debugPrint('Could not read cached fish catalog: $error');
+    }
+    var pond = Pond.starter(catalog: catalog);
     var lastUpdate = DateTime.now();
     try {
       final raw = await preferences.getString(_key);
       if (raw != null) {
         final json = jsonDecode(raw) as Map<String, dynamic>;
-        final restored = Pond.fromJson(json['pond'] as Map<String, dynamic>);
+        final restored = Pond.fromJson(
+          json['pond'] as Map<String, dynamic>,
+          catalog: catalog,
+        );
         final restoredAt = DateTime.fromMillisecondsSinceEpoch(
           json['savedAt'] as int,
         );
@@ -41,7 +62,8 @@ class PondController extends ChangeNotifier {
     } catch (error) {
       debugPrint('Could not load pond: $error');
     }
-    return PondController._(pond, preferences, lastUpdate)..resume();
+    return PondController._(pond, preferences, lastUpdate, loadCatalog)
+      ..resume();
   }
 
   void resume() {
@@ -58,7 +80,28 @@ class PondController extends ChangeNotifier {
       notifyListeners();
     });
     unawaited(_persist());
+    unawaited(_refreshCatalog());
     notifyListeners();
+  }
+
+  Future<void> _refreshCatalog() async {
+    final loadCatalog = _loadCatalog;
+    if (loadCatalog == null || _refreshingCatalog) return;
+    _refreshingCatalog = true;
+    try {
+      final raw = await loadCatalog();
+      final catalog = SpeciesCatalog.decode(raw);
+      if (_disposed || catalog.revision <= pond.catalog.revision) return;
+      if (_timer != null) _advance();
+      pond.applyCatalog(catalog);
+      unawaited(_persist());
+      notifyListeners();
+      await _preferences.setString(_catalogKey, raw);
+    } catch (error) {
+      debugPrint('Could not refresh fish catalog: $error');
+    } finally {
+      _refreshingCatalog = false;
+    }
   }
 
   void pause() {

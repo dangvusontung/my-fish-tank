@@ -22,17 +22,20 @@ const _honeyGold = Color(0xffffc769);
 const _ramBlue = Color(0xff74ebdd);
 
 /// The colour that best identifies a fish of [species] with [tail].
-Color fishColor(Species species, Tail tail) => switch (species) {
-  Species.guppy || Species.betta => tailColor(tail),
-  Species.neon => _neonBlue,
-  Species.corydoras => _bronze,
-  Species.angelfish => _silver,
-  Species.platy => _platyRed,
-  Species.swordtail => _swordGreen,
-  Species.zebrafish => _zebraSilver,
-  Species.honeyGourami => _honeyGold,
-  Species.ram => _ramBlue,
-};
+Color fishColor(Species species, Tail tail) {
+  if (species.color case final rgb?) return Color(0xff000000 | rgb);
+  return switch (species.style) {
+    FishStyle.guppy || FishStyle.betta => tailColor(tail),
+    FishStyle.neon => _neonBlue,
+    FishStyle.corydoras => _bronze,
+    FishStyle.angelfish => _silver,
+    FishStyle.platy => _platyRed,
+    FishStyle.swordtail => _swordGreen,
+    FishStyle.zebrafish => _zebraSilver,
+    FishStyle.honeyGourami => _honeyGold,
+    FishStyle.ram => _ramBlue,
+  };
+}
 
 /// Where a corpse rests, as fractions of the tank size.
 ///
@@ -451,8 +454,8 @@ class _TankMotion extends ChangeNotifier {
       final ahead = _position(pose, movingTime + .15);
       final phase = pose.phase;
       final bottom =
-          pose.fish.species == Species.corydoras ||
-          pose.fish.species == Species.ram;
+          pose.fish.species.style == FishStyle.corydoras ||
+          pose.fish.species.style == FishStyle.ram;
       final destination = activeTarget == null
           ? natural
           : bottom
@@ -599,8 +602,8 @@ class _TankMotion extends ChangeNotifier {
         .72 + depth * .13 + math.cos(cycle) * .03,
       );
     }
-    switch (fish.species) {
-      case Species.neon:
+    switch (fish.species.style) {
+      case FishStyle.neon:
         // The school follows one shared path; each fish keeps its slot.
         final centre = Offset(
           .5 + math.sin(movingTime * .21) * .27,
@@ -611,54 +614,54 @@ class _TankMotion extends ChangeNotifier {
               math.sin(phase) * .075 + math.sin(movingTime * .9 + phase) * .01,
               math.cos(phase * 1.3) * .055,
             );
-      case Species.corydoras:
+      case FishStyle.corydoras:
         return Offset(
           .5 + math.sin(movingTime * .18 + phase) * .38,
           .79 + depth * .05 + math.sin(movingTime * 1.7 + phase) * .006,
         );
-      case Species.betta:
+      case FishStyle.betta:
         final cycle = movingTime * .22 + phase;
         return Offset(
           .5 + math.sin(cycle) * .3,
           .25 + depth * .35 + math.cos(cycle * 1.1) * .03,
         );
-      case Species.angelfish:
+      case FishStyle.angelfish:
         final cycle = movingTime * .26 + phase;
         return Offset(
           .5 + math.sin(cycle) * .27,
           .35 + depth * .3 + math.cos(cycle * .9) * .04,
         );
-      case Species.guppy:
+      case FishStyle.guppy:
         final cycle = movingTime * .44 + phase;
         return Offset(
           .5 + math.sin(cycle) * (.29 + (fish.id % 3) * .047),
           .29 + depth * .50 + math.cos(cycle * 1.07) * .031,
         );
-      case Species.platy:
+      case FishStyle.platy:
         final cycle = movingTime * .33 + phase;
         return Offset(
           (fish.id.isEven ? .27 : .73) + math.sin(cycle) * .18,
           .47 + depth * .2 + math.cos(cycle * 1.3) * .05,
         );
-      case Species.swordtail:
+      case FishStyle.swordtail:
         final cycle = movingTime * .52 + phase;
         return Offset(
           .5 + math.sin(cycle) * .43,
           .34 + depth * .28 + math.cos(cycle * 1.2) * .05,
         );
-      case Species.zebrafish:
+      case FishStyle.zebrafish:
         final cycle = movingTime * .65;
         return Offset(
           .5 + math.sin(cycle) * .28 + math.sin(phase) * .1,
           .3 + math.cos(cycle * .8) * .07 + math.cos(phase * 1.3) * .06,
         );
-      case Species.honeyGourami:
+      case FishStyle.honeyGourami:
         final cycle = movingTime * .19 + phase;
         return Offset(
           .5 + math.sin(cycle) * .27,
           .23 + depth * .19 + math.cos(cycle * 1.5) * .07,
         );
-      case Species.ram:
+      case FishStyle.ram:
         final cycle = movingTime * .28 + phase;
         return Offset(
           (fish.id.isEven ? .32 : .68) + math.sin(cycle) * .18,
@@ -887,15 +890,15 @@ class _AquariumPainter extends CustomPainter {
   double _fishScale(Fish fish, double scale) =>
       scale *
       (.26 + fish.growth(motion.pond.time) * .70) *
-      switch (fish.species) {
-        Species.neon => .75,
-        Species.corydoras => .85,
-        Species.angelfish => 1.15,
-        Species.platy => .94,
-        Species.swordtail => 1.05,
-        Species.zebrafish => .84,
-        Species.honeyGourami => .95,
-        Species.ram => 1.02,
+      switch (fish.species.style) {
+        FishStyle.neon => .75,
+        FishStyle.corydoras => .85,
+        FishStyle.angelfish => 1.15,
+        FishStyle.platy => .94,
+        FishStyle.swordtail => 1.05,
+        FishStyle.zebrafish => .84,
+        FishStyle.honeyGourami => .95,
+        FishStyle.ram => 1.02,
         _ => 1.0,
       };
 
@@ -1146,22 +1149,22 @@ class _AquariumPainter extends CustomPainter {
       final seed = clutch.id * .37 % 1;
       final dots = math.min(24, 4 + clutch.eggs ~/ 20);
       final bubbleNest =
-          clutch.species == Species.betta ||
-          clutch.species == Species.honeyGourami;
-      final (anchor, spread, color) = switch (clutch.species) {
-        Species.betta || Species.honeyGourami => (
+          clutch.species.style == FishStyle.betta ||
+          clutch.species.style == FishStyle.honeyGourami;
+      final (anchor, spread, color) = switch (clutch.species.style) {
+        FishStyle.betta || FishStyle.honeyGourami => (
           Offset(.3 + seed * .4, motion.surface + .015),
           const Offset(.05, .008),
-          clutch.species == Species.honeyGourami
+          clutch.species.style == FishStyle.honeyGourami
               ? const Color(0xccffe6aa)
               : const Color(0xccf3f7ff),
         ),
-        Species.corydoras => (
+        FishStyle.corydoras => (
           Offset(clutch.id.isEven ? .15 : .85, .76 + motion.lift + seed * .05),
           const Offset(.025, .03),
           const Color(0xddf1e3c0),
         ),
-        Species.angelfish || Species.ram => (
+        FishStyle.angelfish || FishStyle.ram => (
           Offset(.25 + seed * .5, .84 + motion.lift),
           const Offset(.03, .012),
           const Color(0xddffd59a),
@@ -1172,7 +1175,7 @@ class _AquariumPainter extends CustomPainter {
           const Color(0x99d9f6ff),
         ),
       };
-      if (clutch.species == Species.ram) {
+      if (clutch.species.style == FishStyle.ram) {
         canvas.drawOval(
           Rect.fromCenter(
             center: Offset(anchor.dx * size.width, anchor.dy * size.height + 3),
@@ -1288,7 +1291,7 @@ class _AquariumPainter extends CustomPainter {
       const tip = Offset(-9, 0);
       canvas.drawLine(Offset(-22, -9 + flap), tip, paint);
       canvas.drawLine(Offset(-22, 9 + flap), tip, paint);
-      paint.color = fish.species == Species.guppy ? _mint : color;
+      paint.color = fish.species.style == FishStyle.guppy ? _mint : color;
       canvas.drawLine(const Offset(-3, 0), const Offset(17, 0), paint);
       canvas.restore();
       return;
@@ -1324,8 +1327,8 @@ class _AquariumPainter extends CustomPainter {
         canvas.drawCircle(at, radius, Paint()..color = const Color(0xffeafff5));
 
     final flap = math.sin(time * 21 + pose.phase);
-    switch (fish.species) {
-      case Species.guppy:
+    switch (fish.species.style) {
+      case FishStyle.guppy:
         if (fish.isComet) {
           final (upper, lower) = _cometTips(pose.phase, time);
           final fork = Path()
@@ -1356,14 +1359,14 @@ class _AquariumPainter extends CustomPainter {
         }
         glow(chevron(21, 4.5), _mint, 2.7);
         eye(const Offset(10, -1.7));
-      case Species.neon:
+      case FishStyle.neon:
         // ›══•›
-        glow(chevron(-15 + flap, 5), _neonBlue, 2.4);
+        glow(chevron(-15 + flap, 5), color, 2.4);
         glow(
           Path()
             ..moveTo(-11, -2.4)
             ..lineTo(12, -2.4),
-          _neonBlue,
+          color,
           2.6,
         );
         glow(
@@ -1373,9 +1376,9 @@ class _AquariumPainter extends CustomPainter {
           _neonRed,
           2.6,
         );
-        glow(chevron(20, 3.5), _neonBlue, 2.2);
+        glow(chevron(20, 3.5), color, 2.2);
         eye(const Offset(14.5, -.6), 1.8);
-      case Species.betta:
+      case FishStyle.betta:
         // ≋≋(•› with a long, slow, flowing tail.
         final slow = time * 4 + pose.phase;
         for (var k = -1; k <= 1; k++) {
@@ -1397,41 +1400,41 @@ class _AquariumPainter extends CustomPainter {
         );
         glow(chevron(19, 4), color, 2.6);
         eye(const Offset(10, -1.5));
-      case Species.corydoras:
+      case FishStyle.corydoras:
         // ›▰•⌟ armoured bronze body, barbels hooked down.
-        glow(chevron(-14 + flap, 5.5), _bronze, 2.4);
+        glow(chevron(-14 + flap, 5.5), color, 2.4);
         final body = RRect.fromRectAndRadius(
           const Rect.fromLTWH(-12, -6, 24, 11),
           const Radius.circular(4),
         );
-        canvas.drawRRect(body, Paint()..color = _bronze.withValues(alpha: .35));
-        glow(Path()..addRRect(body), _bronze, 2.4);
+        canvas.drawRRect(body, Paint()..color = color.withValues(alpha: .35));
+        glow(Path()..addRRect(body), color, 2.4);
         glow(
           Path()
             ..moveTo(14, -1)
             ..lineTo(16, 6)
             ..lineTo(11, 6),
-          _bronze,
+          color,
           2.0,
         );
         eye(const Offset(7, -2), 1.9);
-      case Species.angelfish:
+      case FishStyle.angelfish:
         // ›◇•› diamond body with tall trailing fins.
-        glow(chevron(-15 + flap, 5), _silver, 2.4);
+        glow(chevron(-15 + flap, 5), color, 2.4);
         final body = Path()
           ..moveTo(-14, 0)
           ..lineTo(1, -16)
           ..lineTo(16, 0)
           ..lineTo(1, 16)
           ..close();
-        glow(body, _silver, 2.6);
+        glow(body, color, 2.6);
         glow(
           Path()
             ..moveTo(1, -16)
             ..lineTo(-7, -26 + flap)
             ..moveTo(1, 16)
             ..lineTo(-7, 26 + flap),
-          _silver,
+          color,
           1.8,
         );
         paint
@@ -1439,9 +1442,9 @@ class _AquariumPainter extends CustomPainter {
           ..strokeWidth = 2;
         canvas.drawLine(const Offset(-5, -9), const Offset(-5, 9), paint);
         canvas.drawLine(const Offset(5, -10), const Offset(5, 10), paint);
-        glow(chevron(21, 3.5), _silver, 2.2);
+        glow(chevron(21, 3.5), color, 2.2);
         eye(const Offset(11, -2));
-      case Species.platy:
+      case FishStyle.platy:
         final tailX = -22.0 + flap * 2;
         glow(
           Path()
@@ -1461,7 +1464,7 @@ class _AquariumPainter extends CustomPainter {
         canvas.drawPath(body, Paint()..color = color.withValues(alpha: .27));
         glow(body, color, 2.7);
         eye(const Offset(10, -2));
-      case Species.swordtail:
+      case FishStyle.swordtail:
         final tailX = -24.0 + flap * 2;
         final tail = Path()
           ..moveTo(tailX, -7)
@@ -1492,7 +1495,7 @@ class _AquariumPainter extends CustomPainter {
           1.8,
         );
         eye(const Offset(13, -2));
-      case Species.zebrafish:
+      case FishStyle.zebrafish:
         glow(chevron(-17 + flap * 2, 5), color, 2.2);
         final stripes = Path();
         for (final y in [-4.5, 0.0, 4.5]) {
@@ -1503,7 +1506,7 @@ class _AquariumPainter extends CustomPainter {
         glow(stripes, color, 2.0);
         glow(chevron(20, 3.3), color, 1.9);
         eye(const Offset(12, -2), 1.75);
-      case Species.honeyGourami:
+      case FishStyle.honeyGourami:
         final sway = math.sin(time * 4 + pose.phase);
         glow(chevron(-16 + sway * 2, 5.5), color, 2.3);
         final body = Path()
@@ -1524,7 +1527,7 @@ class _AquariumPainter extends CustomPainter {
           1.6,
         );
         eye(const Offset(12, -3));
-      case Species.ram:
+      case FishStyle.ram:
         glow(chevron(-16 + flap, 6), color, 2.4);
         final body = Path()
           ..moveTo(-14, 0)

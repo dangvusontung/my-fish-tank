@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_fish_tank/src/pond.dart';
+import 'package:my_fish_tank/src/species_catalog.dart';
 
 void main() {
   test('keeps the recommended fish and retains an opposite-sex breeder', () {
@@ -226,6 +227,63 @@ void main() {
     pond.water = 80;
     pond.advance(const Duration(seconds: Pond.daySeconds));
     expect(pond.clutches.single.species, Species.ram);
+  });
+
+  test('unlisted catalog species still spawn after restoring the pond', () {
+    final catalog = SpeciesCatalog.decode('''
+      {
+        "schemaVersion": 1, "revision": 1,
+        "species": [{
+          "id": "pinkDanio",
+          "style": "zebrafish",
+          "label": "Sọc ngựa hồng",
+          "latin": "Danio rerio",
+          "habit": "Cá sọc ngựa màu hồng.",
+          "clutch": [10, 10],
+          "incubation": 1
+        }]
+      }
+    ''');
+    final species = catalog.listings.single;
+    final pond = Pond(catalog: catalog)..coins = 1000;
+    expect(pond.buyPair(species), isTrue);
+    pond.advance(const Duration(seconds: 4 * Pond.daySeconds));
+    expect(pond.clutches.single.eggs, 10);
+
+    final replacement = SpeciesCatalog.decode('''
+      {
+        "schemaVersion": 1, "revision": 2,
+        "species": [{"id": "guppy", "available": false}]
+      }
+    ''');
+    pond.applyCatalog(replacement);
+    final restored = Pond.fromJson(
+      jsonDecode(jsonEncode(pond.toJson())),
+      catalog: replacement,
+    );
+    expect(restored.catalog.listings, isEmpty);
+    expect(restored.buyPair(species), isFalse);
+    expect(restored.buyPair(Species.guppy), isFalse);
+    expect(restored.scheduledSpecies.single.label, species.label);
+    expect(restored.pairOf(species), hasLength(2));
+    final report = restored.advance(const Duration(seconds: Pond.daySeconds));
+    expect(report.hatched, greaterThan(0));
+    expect(restored.litters.single.species, species);
+  });
+
+  test('a malformed catalog cannot replace a known species definition', () {
+    for (final entries in [
+      '[{"id": "guppy", "pairCost": -1}]',
+      '[{"id": "guppy"}, {"id": "guppy"}]',
+      '[{"id": "guppy", "style": "unknown"}]',
+    ]) {
+      expect(
+        () => SpeciesCatalog.decode(
+          '{"schemaVersion": 1, "revision": 2, "species": $entries}',
+        ),
+        throwsFormatException,
+      );
+    }
   });
 
   test('rival betta males fight while the breeding male holds on', () {

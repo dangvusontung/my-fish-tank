@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'src/aquarium.dart';
+import 'src/catalog_download.dart';
 import 'src/pond.dart';
 import 'src/pond_controller.dart';
 
@@ -30,11 +31,13 @@ const _onWater = [Shadow(color: Color(0xcc04111c), blurRadius: 6)];
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const FishTankApp());
+  runApp(const FishTankApp(catalogLoader: fetchFishCatalog));
 }
 
 class FishTankApp extends StatelessWidget {
-  const FishTankApp({super.key});
+  const FishTankApp({super.key, this.catalogLoader});
+
+  final CatalogLoader? catalogLoader;
 
   @override
   Widget build(BuildContext context) {
@@ -47,13 +50,15 @@ class FishTankApp extends StatelessWidget {
       title: 'Bể Neon',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorScheme: colors, scaffoldBackgroundColor: _base),
-      home: const PondScreen(),
+      home: PondScreen(catalogLoader: catalogLoader),
     );
   }
 }
 
 class PondScreen extends StatefulWidget {
-  const PondScreen({super.key});
+  const PondScreen({super.key, this.catalogLoader});
+
+  final CatalogLoader? catalogLoader;
 
   @override
   State<PondScreen> createState() => _PondScreenState();
@@ -79,7 +84,9 @@ class _PondScreenState extends State<PondScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _load() async {
-    final controller = await PondController.load();
+    final controller = await PondController.load(
+      loadCatalog: widget.catalogLoader,
+    );
     if (!mounted) {
       controller.dispose();
       return;
@@ -563,7 +570,11 @@ class _ManagementSheetState extends State<_ManagementSheet> {
                         ),
                       ]),
                       _page('handbook', [
-                        for (final species in Species.values)
+                        if (pond.catalog.listings.isEmpty)
+                          const _Card(
+                            child: Text('Chưa có cặp giống đang bán.'),
+                          ),
+                        for (final species in pond.catalog.listings)
                           _HandbookEntry(
                             species: species,
                             pond: pond,
@@ -615,6 +626,7 @@ class _ManagementSheetState extends State<_ManagementSheet> {
     final key = [
       for (final level in pond.levels.values) level,
       pond.fish.length,
+      pond.catalog.revision,
       pond.dead,
       (pond.time / (Pond.daySeconds / 4)).floor(),
     ].join(',');
@@ -876,7 +888,7 @@ class _Care extends StatelessWidget {
   Widget build(BuildContext context) {
     final feeder = pond.levels[Equipment.feeder]! > 0;
     final litters = [
-      for (final species in Species.values)
+      for (final species in pond.scheduledSpecies)
         if (pond.daysToLitter(species) case final days?)
           '${species.label} $days ngày',
     ];
@@ -1089,7 +1101,7 @@ class _HandbookEntry extends StatelessWidget {
         schoolAdults >= school
             ? 'Đủ đàn, kiếm xu nhiều hơn'
             : 'Đàn $schoolAdults/$school ở hồ chính, cá còn stress',
-      if (species == Species.ram &&
+      if (species.spawnWater > 50 &&
           owned > 0 &&
           pond.water < species.spawnWater)
         'Nước dưới ${species.spawnWater}%, chưa đẻ',
@@ -1256,7 +1268,7 @@ class _FishCard extends StatelessWidget {
     final litter = pond.litterById(fish.litter);
     final moves = pond.movesFor(fish);
     final income = adult ? species.adultIncome : species.youngIncome;
-    final colored = species == Species.guppy || species == Species.betta;
+    final colored = species.usesTailColor;
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 460),
       child: DecoratedBox(
@@ -1517,7 +1529,7 @@ class _LitterLots extends StatelessWidget {
 /// "đuôi cam × đuôi tím" for species whose tail colour matters.
 String? _parents(Litter litter) {
   if (litter.tails.length != 2) return null;
-  if (litter.species != Species.guppy && litter.species != Species.betta) {
+  if (!litter.species.usesTailColor) {
     return null;
   }
   return litter.tails.map((tail) => tail.label).join(' × ');

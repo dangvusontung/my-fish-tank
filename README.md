@@ -12,6 +12,32 @@ Game idle hồ cá nước ngọt viết bằng Flutter. Một bể có sức ch
 - Thức ăn thừa và xác cá làm nước xấu đi. Chạm xác cá để vớt, hoặc nuôi ốc ramshorn để rỉa xác.
 - Tiến trình lưu trên máy và mô phỏng tối đa 8 giờ khi mở lại game.
 
+## Cập nhật danh mục cá
+
+Sổ tay đọc [catalog/fish-v1.json](catalog/fish-v1.json) từ nhánh `main` khi mở hoặc quay lại app. Game mở hồ bằng bản danh mục đã lưu trên máy và tải bản mới trong nền. Lần đầu chơi offline có sẵn 10 loài. Lỗi mạng hay JSON lỗi thì game dùng bản đã lưu.
+
+Sửa danh mục rồi tăng `revision` trước khi đưa lên `main`. Mảng `species` quyết định thứ tự trong Sổ tay. Một loài có sẵn chỉ cần `id` và các trường muốn sửa, ví dụ `{"id":"neon","pairCost":150}`. Đặt `"available": false` để ẩn khỏi Sổ tay. Cá đã mua và lứa đang ấp vẫn tiếp tục vòng đời, kể cả khi mục đó bị bỏ khỏi danh mục.
+
+Loài mới cần `id` duy nhất, `style`, `label`, `latin` và `habit`. Ví dụ dưới đây là một biến thể mún đỏ minh họa cách khai báo.
+
+```json
+{
+  "id": "bluePlaty",
+  "style": "platy",
+  "label": "Mún lam",
+  "latin": "Xiphophorus maculatus",
+  "habit": "Cá mún màu lam, đẻ con trực tiếp.",
+  "color": "#70AAFF",
+  "pairCost": 120,
+  "clutch": [20, 40]
+}
+```
+
+- `style` dùng một trong 10 ID có sẵn trong file. Nó chọn hình dáng, chuyển động và cách hiển thị ổ trứng. Mục mới kế thừa thông số mặc định của kiểu đó. Legendary của bảy màu và tính lãnh thổ của betta thuộc về loài gốc.
+- `color` dùng `#RRGGBB`. `glyph` đổi ký tự trong Sổ tay và các thẻ. `brood` nhận `live` hoặc `eggs`. Cá đẻ con đặt `incubation` bằng 0, cá đẻ trứng đặt số ngày ấp lớn hơn 0.
+- `adultDays`, `lifeDays`, `clutch` và `spawnEvery` dùng khoảng `[thấp, cao]` tính cả hai đầu. Có thể chỉnh thêm `hatchRate`, `fryLoss`, `basePrice`, `vividDivisor`, `adultIncome`, `youngIncome`, `load`, `predation`, `schoolSize` và `spawnWater`.
+- Giữ nguyên `id` của loài đã phát hành. Lần tải sau chỉ nhận `revision` cao hơn bản đã lưu. Muốn quay về nội dung cũ, đưa nội dung đó lên lại với `revision` mới.
+
 ## Chạy trên Android
 
 Cài Flutter stable và hoàn tất môi trường Android theo [hướng dẫn Flutter](https://docs.flutter.dev/platform-integration/android/setup). Bản này dùng Flutter 3.50 trở lên.

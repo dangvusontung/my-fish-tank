@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
@@ -129,6 +130,60 @@ void main() {
     expect(pond.count(Species.platy), 2);
     expect(find.text('Ngày 1 · 13 cá'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('updates the open handbook and caches the new catalog offline', (
+    tester,
+  ) async {
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+    final response = Completer<String>();
+
+    await tester.pumpWidget(FishTankApp(catalogLoader: () => response.future));
+    await tester.pump();
+    await tester.tap(find.text('Quản lý'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Sổ tay'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Bảy màu'), findsOneWidget);
+
+    response.complete('''
+      {
+        "schemaVersion": 1,
+        "revision": 2,
+        "species": [{
+          "id": "bluePlaty",
+          "style": "platy",
+          "label": "Mún lam",
+          "latin": "Xiphophorus maculatus",
+          "habit": "Một dòng cá mún xanh.",
+          "color": "#70aaff",
+          "pairCost": 30
+        }]
+      }
+    ''');
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Bảy màu'), findsNothing);
+    expect(find.text('Mún lam'), findsOneWidget);
+    await tester.tap(find.text('Mua cặp giống · 30 xu').hitTestable());
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    await tester.pumpWidget(
+      FishTankApp(catalogLoader: () => Future.error(StateError('Offline'))),
+    );
+    await tester.pump();
+    await tester.pump();
+    final pond = tester.widget<Aquarium>(find.byType(Aquarium)).pond;
+    final species = pond.catalog.listings.single;
+    expect(species.name, 'bluePlaty');
+    expect(fishColor(species, Tail.amber), const Color(0xff70aaff));
+    expect(pond.count(species), 2);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
