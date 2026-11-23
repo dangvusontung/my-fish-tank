@@ -44,6 +44,8 @@ enum Species {
     load: .5,
     predation: .3,
     pairCost: 140,
+    schoolSize: 6,
+    spawnWater: 70,
     habit:
         'Đẻ 100–200 trứng mỗi đợt, chỉ đẻ khi nước từ 70% trở lên. '
         'Trứng nhạy sáng nên tỷ lệ nở thấp. Đủ đàn 6 con thì ít stress '
@@ -120,6 +122,121 @@ enum Species {
         'Cặp bố mẹ dọn lá hoặc đá để đẻ 234–1.082 trứng rồi canh trứng. '
         'Cặp non thường ăn lứa đầu. Cá lớn săn cá con rất mạnh và làm '
         'bẩn nước nhiều.',
+  ),
+  platy(
+    label: 'Mún đỏ',
+    latin: 'Xiphophorus maculatus',
+    glyph: '‹⬭•›',
+    brood: Brood.live,
+    adultDays: (60, 91),
+    lifeDays: (730, 1096),
+    clutch: (20, 81),
+    spawnEvery: (28, 43),
+    incubation: 0,
+    hatchRate: 1,
+    basePrice: 18,
+    vividDivisor: 4,
+    adultIncome: 2.8,
+    youngIncome: .55,
+    load: .85,
+    predation: .55,
+    pairCost: 105,
+    habit:
+        'Thân ngắn, tròn, màu đỏ cam. Đẻ con trực tiếp và hay bơi '
+        'quanh bụi cây ở tầng giữa.',
+  ),
+  swordtail(
+    label: 'Đuôi kiếm',
+    latin: 'Xiphophorus hellerii',
+    glyph: '⟋─╾•›',
+    brood: Brood.live,
+    adultDays: (84, 113),
+    lifeDays: (1095, 1461),
+    clutch: (20, 101),
+    spawnEvery: (28, 36),
+    incubation: 0,
+    hatchRate: 1,
+    basePrice: 34,
+    vividDivisor: 3,
+    adultIncome: 4.6,
+    youngIncome: .65,
+    load: 1.35,
+    predation: .9,
+    pairCost: 220,
+    habit:
+        'Bơi khoẻ ở khoảng trống, đẻ con trực tiếp. Cá trống lên '
+        'kiếm ở mép dưới vây đuôi khi lớn.',
+  ),
+  zebrafish(
+    label: 'Sọc ngựa',
+    latin: 'Danio rerio',
+    glyph: '‹≡•›',
+    brood: Brood.eggs,
+    adultDays: (75, 106),
+    lifeDays: (730, 1461),
+    clutch: (100, 201),
+    spawnEvery: (14, 22),
+    incubation: 3,
+    hatchRate: .45,
+    fryLoss: .14,
+    basePrice: 16,
+    vividDivisor: 5,
+    adultIncome: 1.9,
+    youngIncome: .25,
+    load: .55,
+    predation: .4,
+    pairCost: 170,
+    schoolSize: 6,
+    habit:
+        'Sọc dọc thân, bơi nhanh thành đàn ở tầng trên và rải '
+        'trứng xuống đáy. Đủ đàn 6 con thì kiếm xu nhiều hơn.',
+  ),
+  honeyGourami(
+    label: 'Sặc mật ong',
+    latin: 'Trichogaster chuna',
+    glyph: '‹◖•⌄',
+    brood: Brood.eggs,
+    adultDays: (100, 141),
+    lifeDays: (1095, 1826),
+    clutch: (100, 301),
+    spawnEvery: (26, 39),
+    incubation: 2,
+    hatchRate: .62,
+    fryLoss: .2,
+    basePrice: 47,
+    vividDivisor: 3,
+    adultIncome: 4.8,
+    youngIncome: .65,
+    load: .9,
+    predation: .5,
+    pairCost: 305,
+    habit:
+        'Lướt chậm gần mặt nước, có hai vây bụng dài như râu. '
+        'Cá trống gom trứng vào tổ bọt và canh tới lúc nở.',
+  ),
+  ram(
+    label: 'Phượng hoàng',
+    latin: 'Mikrogeophagus ramirezi',
+    glyph: '‹✧◉›',
+    brood: Brood.eggs,
+    adultDays: (115, 161),
+    lifeDays: (730, 1096),
+    clutch: (100, 301),
+    spawnEvery: (26, 39),
+    incubation: 3,
+    hatchRate: .58,
+    fryLoss: .24,
+    basePrice: 62,
+    vividDivisor: 2,
+    adultIncome: 7.4,
+    youngIncome: .9,
+    load: 1.25,
+    predation: .7,
+    pairCost: 410,
+    spawnWater: 80,
+    habit:
+        'Rà tầng thấp, thân lấp lánh chấm lam. Cặp bố mẹ đẻ trên '
+        'đá phẳng và canh trứng. Trong game cần nước từ 80% để đẻ.',
   );
 
   const Species({
@@ -142,6 +259,8 @@ enum Species {
     required this.predation,
     required this.pairCost,
     required this.habit,
+    this.schoolSize = 0,
+    this.spawnWater = 50,
   });
 
   final String label;
@@ -171,6 +290,6 @@ enum Species {
   final double predation;
   final int pairCost;
   final String habit;
-
-  static const neonSchool = 6;
+  final int schoolSize;
+  final int spawnWater;
 }

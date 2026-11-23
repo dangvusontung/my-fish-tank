@@ -15,6 +15,11 @@ const _neonBlue = Color(0xff4fd8ff);
 const _neonRed = Color(0xffff4d6d);
 const _bronze = Color(0xffd59a5a);
 const _silver = Color(0xffe8f2f6);
+const _platyRed = Color(0xffff735b);
+const _swordGreen = Color(0xffb8ec71);
+const _zebraSilver = Color(0xffb3b9ff);
+const _honeyGold = Color(0xffffc769);
+const _ramBlue = Color(0xff74ebdd);
 
 /// The colour that best identifies a fish of [species] with [tail].
 Color fishColor(Species species, Tail tail) => switch (species) {
@@ -22,6 +27,11 @@ Color fishColor(Species species, Tail tail) => switch (species) {
   Species.neon => _neonBlue,
   Species.corydoras => _bronze,
   Species.angelfish => _silver,
+  Species.platy => _platyRed,
+  Species.swordtail => _swordGreen,
+  Species.zebrafish => _zebraSilver,
+  Species.honeyGourami => _honeyGold,
+  Species.ram => _ramBlue,
 };
 
 /// Where a corpse rests, as fractions of the tank size.
@@ -440,7 +450,9 @@ class _TankMotion extends ChangeNotifier {
       final natural = _position(pose, movingTime);
       final ahead = _position(pose, movingTime + .15);
       final phase = pose.phase;
-      final bottom = pose.fish.species == Species.corydoras;
+      final bottom =
+          pose.fish.species == Species.corydoras ||
+          pose.fish.species == Species.ram;
       final destination = activeTarget == null
           ? natural
           : bottom
@@ -621,6 +633,36 @@ class _TankMotion extends ChangeNotifier {
         return Offset(
           .5 + math.sin(cycle) * (.29 + (fish.id % 3) * .047),
           .29 + depth * .50 + math.cos(cycle * 1.07) * .031,
+        );
+      case Species.platy:
+        final cycle = movingTime * .33 + phase;
+        return Offset(
+          (fish.id.isEven ? .27 : .73) + math.sin(cycle) * .18,
+          .47 + depth * .2 + math.cos(cycle * 1.3) * .05,
+        );
+      case Species.swordtail:
+        final cycle = movingTime * .52 + phase;
+        return Offset(
+          .5 + math.sin(cycle) * .43,
+          .34 + depth * .28 + math.cos(cycle * 1.2) * .05,
+        );
+      case Species.zebrafish:
+        final cycle = movingTime * .65;
+        return Offset(
+          .5 + math.sin(cycle) * .28 + math.sin(phase) * .1,
+          .3 + math.cos(cycle * .8) * .07 + math.cos(phase * 1.3) * .06,
+        );
+      case Species.honeyGourami:
+        final cycle = movingTime * .19 + phase;
+        return Offset(
+          .5 + math.sin(cycle) * .27,
+          .23 + depth * .19 + math.cos(cycle * 1.5) * .07,
+        );
+      case Species.ram:
+        final cycle = movingTime * .28 + phase;
+        return Offset(
+          (fish.id.isEven ? .32 : .68) + math.sin(cycle) * .18,
+          .72 + depth * .09 + math.cos(cycle * 1.9) * .019,
         );
     }
   }
@@ -849,6 +891,11 @@ class _AquariumPainter extends CustomPainter {
         Species.neon => .75,
         Species.corydoras => .85,
         Species.angelfish => 1.15,
+        Species.platy => .94,
+        Species.swordtail => 1.05,
+        Species.zebrafish => .84,
+        Species.honeyGourami => .95,
+        Species.ram => 1.02,
         _ => 1.0,
       };
 
@@ -1098,18 +1145,23 @@ class _AquariumPainter extends CustomPainter {
     for (final clutch in motion.pond.clutches) {
       final seed = clutch.id * .37 % 1;
       final dots = math.min(24, 4 + clutch.eggs ~/ 20);
+      final bubbleNest =
+          clutch.species == Species.betta ||
+          clutch.species == Species.honeyGourami;
       final (anchor, spread, color) = switch (clutch.species) {
-        Species.betta => (
+        Species.betta || Species.honeyGourami => (
           Offset(.3 + seed * .4, motion.surface + .015),
           const Offset(.05, .008),
-          const Color(0xccf3f7ff),
+          clutch.species == Species.honeyGourami
+              ? const Color(0xccffe6aa)
+              : const Color(0xccf3f7ff),
         ),
         Species.corydoras => (
           Offset(clutch.id.isEven ? .15 : .85, .76 + motion.lift + seed * .05),
           const Offset(.025, .03),
           const Color(0xddf1e3c0),
         ),
-        Species.angelfish => (
+        Species.angelfish || Species.ram => (
           Offset(.25 + seed * .5, .84 + motion.lift),
           const Offset(.03, .012),
           const Color(0xddffd59a),
@@ -1120,6 +1172,16 @@ class _AquariumPainter extends CustomPainter {
           const Color(0x99d9f6ff),
         ),
       };
+      if (clutch.species == Species.ram) {
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: Offset(anchor.dx * size.width, anchor.dy * size.height + 3),
+            width: size.width * .078,
+            height: size.height * .033,
+          ),
+          fill..color = const Color(0xff334d50),
+        );
+      }
       for (var i = 0; i < dots; i++) {
         final offset = Offset(
           math.sin(i * 2.4 + clutch.id) * spread.dx,
@@ -1129,7 +1191,7 @@ class _AquariumPainter extends CustomPainter {
           (anchor.dx + offset.dx) * size.width,
           (anchor.dy + offset.dy) * size.height,
         );
-        if (clutch.species == Species.betta) {
+        if (bubbleNest) {
           line
             ..color = color.withValues(alpha: .5 + math.sin(time + i) * .2)
             ..strokeWidth = .8;
@@ -1379,6 +1441,116 @@ class _AquariumPainter extends CustomPainter {
         canvas.drawLine(const Offset(5, -10), const Offset(5, 10), paint);
         glow(chevron(21, 3.5), _silver, 2.2);
         eye(const Offset(11, -2));
+      case Species.platy:
+        final tailX = -22.0 + flap * 2;
+        glow(
+          Path()
+            ..moveTo(-9, 0)
+            ..quadraticBezierTo(tailX - 1, -12, tailX, -6)
+            ..quadraticBezierTo(tailX - 3, 0, tailX, 6)
+            ..quadraticBezierTo(tailX - 1, 12, -9, 0),
+          color,
+          2.6,
+        );
+        final body = Path()
+          ..moveTo(-12, 0)
+          ..quadraticBezierTo(-6, -13, 6, -9)
+          ..quadraticBezierTo(14, -8, 17, 0)
+          ..quadraticBezierTo(11, 12, 0, 10)
+          ..quadraticBezierTo(-9, 8, -12, 0);
+        canvas.drawPath(body, Paint()..color = color.withValues(alpha: .27));
+        glow(body, color, 2.7);
+        eye(const Offset(10, -2));
+      case Species.swordtail:
+        final tailX = -24.0 + flap * 2;
+        final tail = Path()
+          ..moveTo(tailX, -7)
+          ..lineTo(-13, 0)
+          ..lineTo(tailX, 7);
+        if (fish.sex == Sex.male) {
+          final sword = ((fish.growth(motion.pond.time) - .35) / .65).clamp(
+            0.0,
+            1.0,
+          );
+          tail.lineTo(tailX - sword * 16, 7 + sword * (6 + flap));
+        }
+        glow(tail, color, 2.5);
+        glow(
+          Path()
+            ..moveTo(-13, 0)
+            ..quadraticBezierTo(-3, -10, 9, -6)
+            ..quadraticBezierTo(16, -4, 20, 0)
+            ..quadraticBezierTo(9, 9, -13, 0),
+          color,
+          2.5,
+        );
+        glow(
+          Path()
+            ..moveTo(-10, 0)
+            ..lineTo(12, 0),
+          const Color(0xffff9f72),
+          1.8,
+        );
+        eye(const Offset(13, -2));
+      case Species.zebrafish:
+        glow(chevron(-17 + flap * 2, 5), color, 2.2);
+        final stripes = Path();
+        for (final y in [-4.5, 0.0, 4.5]) {
+          stripes
+            ..moveTo(-13, y * .72)
+            ..quadraticBezierTo(-1, y * 1.15, y == 0 ? 17 : 10, y * .6);
+        }
+        glow(stripes, color, 2.0);
+        glow(chevron(20, 3.3), color, 1.9);
+        eye(const Offset(12, -2), 1.75);
+      case Species.honeyGourami:
+        final sway = math.sin(time * 4 + pose.phase);
+        glow(chevron(-16 + sway * 2, 5.5), color, 2.3);
+        final body = Path()
+          ..moveTo(-15, 0)
+          ..quadraticBezierTo(-1, -16, 13, -8)
+          ..quadraticBezierTo(17, -5, 20, -1)
+          ..quadraticBezierTo(10, 13, -6, 7)
+          ..quadraticBezierTo(-11, 4, -15, 0);
+        canvas.drawPath(body, Paint()..color = color.withValues(alpha: .23));
+        glow(body, color, 2.7);
+        glow(
+          Path()
+            ..moveTo(6, 8)
+            ..quadraticBezierTo(8 + sway * 5, 13, 4 + sway * 7, 23)
+            ..moveTo(0, 8)
+            ..quadraticBezierTo(-1 + sway * 4, 14, -5 + sway * 6, 20),
+          color,
+          1.6,
+        );
+        eye(const Offset(12, -3));
+      case Species.ram:
+        glow(chevron(-16 + flap, 6), color, 2.4);
+        final body = Path()
+          ..moveTo(-14, 0)
+          ..quadraticBezierTo(-7, -11, -2, -10)
+          ..lineTo(0, -16)
+          ..lineTo(4, -11)
+          ..quadraticBezierTo(14, -10, 20, 0)
+          ..quadraticBezierTo(12, 10, 2, 11)
+          ..quadraticBezierTo(-8, 9, -14, 0);
+        canvas.drawPath(body, Paint()..color = color.withValues(alpha: .27));
+        glow(body, color, 2.4);
+        canvas.drawOval(
+          Rect.fromCenter(center: const Offset(1, -1), width: 8, height: 10),
+          Paint()..color = const Color(0xff172741),
+        );
+        final dots = Paint()..color = const Color(0xff7cb4ff);
+        for (final dot in const [
+          Offset(-8, -2),
+          Offset(-5, 3),
+          Offset(4, -7),
+          Offset(6, 4),
+          Offset(12, 2),
+        ]) {
+          canvas.drawCircle(dot, 1.5, dots);
+        }
+        eye(const Offset(12, -4));
     }
     canvas.restore();
   }

@@ -93,6 +93,45 @@ void main() {
     },
   );
 
+  testWidgets('buys and displays a new species from the handbook', (
+    tester,
+  ) async {
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(const FishTankApp());
+    await tester.pump();
+    await tester.tap(find.text('Quản lý'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Sổ tay'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    final handbook = find.byKey(const PageStorageKey('handbook'));
+    final scrollable = find.descendant(
+      of: handbook,
+      matching: find.byType(Scrollable),
+    );
+    final buy = find.text('Mua cặp giống · 105 xu');
+    await tester.scrollUntilVisible(buy, 220, scrollable: scrollable);
+    await tester.pump();
+    expect(buy.hitTestable(), findsOneWidget);
+    await tester.tap(buy);
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Đóng quản lý'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    final pond = tester.widget<Aquarium>(find.byType(Aquarium)).pond;
+    expect(pond.count(Species.platy), 2);
+    expect(find.text('Ngày 1 · 13 cá'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('keeps zone labels and fish glyphs on one line when narrow', (
     tester,
   ) async {

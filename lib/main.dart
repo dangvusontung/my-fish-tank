@@ -1076,6 +1076,8 @@ class _HandbookEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     final owned = pond.count(species);
     final adults = pond.adults(species);
+    final school = species.schoolSize;
+    final schoolAdults = school > 0 ? pond.adults(species, zone: Zone.main) : 0;
     final (clutchLow, clutchHigh) = species.clutch;
     final brood = species.brood == Brood.live
         ? 'Đẻ con · $clutchLow–${clutchHigh - 1} con/lứa'
@@ -1083,10 +1085,14 @@ class _HandbookEntry extends StatelessWidget {
               '${species.incubation} ngày · nở ~${(species.hatchRate * 100).round()}%';
     final status = [
       owned == 0 ? 'Chưa có trong hồ' : '$owned con · $adults trưởng thành',
-      if (species == Species.neon && owned > 0)
-        adults >= Species.neonSchool
+      if (school > 0 && owned > 0)
+        schoolAdults >= school
             ? 'Đủ đàn, kiếm xu nhiều hơn'
-            : 'Đàn $adults/${Species.neonSchool}, cá còn stress',
+            : 'Đàn $schoolAdults/$school ở hồ chính, cá còn stress',
+      if (species == Species.ram &&
+          owned > 0 &&
+          pond.water < species.spawnWater)
+        'Nước dưới ${species.spawnWater}%, chưa đẻ',
     ].join(' · ');
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),

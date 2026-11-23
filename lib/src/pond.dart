@@ -470,8 +470,13 @@ class Pond {
   int count(Species species) =>
       fish.where((item) => item.species == species).length;
 
-  int adults(Species species) => fish
-      .where((item) => item.species == species && item.isAdult(time))
+  int adults(Species species, {Zone? zone}) => fish
+      .where(
+        (item) =>
+            item.species == species &&
+            (zone == null || item.zone == zone) &&
+            item.isAdult(time),
+      )
       .length;
 
   List<Fish> pairOf(Species species) => fish
@@ -546,14 +551,18 @@ class Pond {
   double _rank(Fish item) => item.vividness - .16 * item.age(time);
 
   double _income(double at) {
-    final neonAdults = fish
-        .where(
-          (item) =>
-              item.species == Species.neon &&
-              item.zone == Zone.main &&
-              item.isAdult(at),
-        )
-        .length;
+    final schoolAdults = <Species, int>{};
+    for (final item in fish) {
+      if (item.species.schoolSize > 0 &&
+          item.zone == Zone.main &&
+          item.isAdult(at)) {
+        schoolAdults.update(
+          item.species,
+          (count) => count + 1,
+          ifAbsent: () => 1,
+        );
+      }
+    }
     var bettaMales = 0;
     var main = 0.0;
     var nursery = 0.0;
@@ -562,8 +571,10 @@ class Pond {
       var value = species.youngIncome;
       if (item.isAdult(at)) {
         value = species.adultIncome;
-        if (species == Species.neon) {
-          value *= neonAdults >= Species.neonSchool ? 1.35 : .7;
+        if (species.schoolSize > 0) {
+          value *= (schoolAdults[species] ?? 0) >= species.schoolSize
+              ? 1.35
+              : .7;
         }
         // Only one male holds the open tank; males in cups earn in peace.
         if (species == Species.betta &&
@@ -900,7 +911,7 @@ class Pond {
     if (parents.length != 2) return;
     final ready =
         satiety >= 25 &&
-        water >= (species == Species.neon ? 70 : 50) &&
+        water >= species.spawnWater &&
         parents.every(
           (parent) => parent.isAdult(time) && parent.zone == Zone.main,
         );

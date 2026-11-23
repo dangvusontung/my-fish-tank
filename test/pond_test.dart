@@ -154,6 +154,80 @@ void main() {
     expect(pond.count(Species.neon), 2);
   });
 
+  test('new species keep their broods and hatch schedules across saves', () {
+    const livebearers = [Species.platy, Species.swordtail];
+    const eggLayers = [Species.zebrafish, Species.honeyGourami, Species.ram];
+    final pond = Pond()..coins = 3000;
+    for (final species in [...livebearers, ...eggLayers]) {
+      expect(pond.buyPair(species), isTrue);
+      expect(pond.pairOf(species), hasLength(2));
+    }
+
+    pond.advance(const Duration(seconds: 4 * Pond.daySeconds));
+    for (final species in livebearers) {
+      final litter = pond.litters.singleWhere(
+        (litter) => litter.species == species,
+      );
+      expect(
+        litter.born,
+        inInclusiveRange(species.clutch.$1, species.clutch.$2 - 1),
+      );
+    }
+    expect(
+      pond.clutches.map((clutch) => clutch.species),
+      unorderedEquals(eggLayers),
+    );
+
+    final restored = Pond.fromJson(jsonDecode(jsonEncode(pond.toJson())));
+    restored.advance(const Duration(seconds: 3 * Pond.daySeconds));
+
+    for (final species in eggLayers) {
+      final litter = restored.litters.singleWhere(
+        (litter) => litter.species == species,
+      );
+      expect(litter.born, inInclusiveRange(1, litter.eggs!));
+      expect(restored.count(species), greaterThan(2));
+    }
+    expect(restored.clutches, isEmpty);
+  });
+
+  test(
+    'zebrafish earn a school bonus only with six adults in the main tank',
+    () {
+      const species = Species.zebrafish;
+      final pond = Pond()
+        ..coins = 1000
+        ..water = 100
+        ..satiety = 100
+        ..nurserySatiety = 100;
+      expect(pond.upgrade(Equipment.nursery), isTrue);
+      for (var pair = 0; pair < 3; pair++) {
+        expect(pond.buyPair(species), isTrue);
+      }
+      expect(pond.income, closeTo(6 * species.adultIncome * 1.35, .001));
+
+      expect(pond.moveFish(pond.fish.last.id, Zone.nursery), isTrue);
+
+      expect(pond.adults(species, zone: Zone.main), 5);
+      expect(pond.income, closeTo(6 * species.adultIncome * .7, .001));
+    },
+  );
+
+  test('ram waits for clean water before spawning', () {
+    final pond = Pond()..coins = 1000;
+    expect(pond.buyPair(Species.ram), isTrue);
+    pond
+      ..water = 79
+      ..nextLitter[Species.ram] = 0;
+
+    pond.advance(const Duration(seconds: 1));
+    expect(pond.clutches, isEmpty);
+
+    pond.water = 80;
+    pond.advance(const Duration(seconds: Pond.daySeconds));
+    expect(pond.clutches.single.species, Species.ram);
+  });
+
   test('rival betta males fight while the breeding male holds on', () {
     final pond = Pond.starter()..coins = 1000;
     pond.buyPair(Species.betta);

@@ -1,6 +1,6 @@
 # Bể Neon
 
-Game idle hồ cá nước ngọt viết bằng Flutter. Một bể có sức chứa vô hạn với năm loài: bảy màu, neon, betta, cá chuột và thần tiên.
+Game idle hồ cá nước ngọt viết bằng Flutter. Một bể có sức chứa vô hạn với 10 loài gồm bảy màu, neon, betta, cá chuột, thần tiên, mún đỏ, đuôi kiếm, sọc ngựa, sặc mật ong và phượng hoàng.
 
 [Thiết kế game và các cơ chế đã bàn](docs/game-design.md).
 
