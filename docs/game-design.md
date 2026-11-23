@@ -6,7 +6,7 @@ Bể Neon là game idle tycoon hồ thủy sinh nước ngọt trên mobile. Ng�
 
 - Hồ phủ màn hình khi cầm dọc hoặc xoay ngang. Nền kính tối, cá ghép từ ký tự phát sáng, có bong bóng và cây đung đưa dưới đáy.
 - Chạm đúng chỗ muốn thả mồi hoặc bấm **Rải mồi**. Cá đổi hướng, quẫy đuôi nhanh hơn để bơi tới mồi, rồi tản ra. Khi bơi bình thường, cá lướt, nghiêng mình và quay đầu.
-- Ngày trong game, tổng cá, chất lượng nước và số xu hiện trên hồ. **Quản lý** mở bốn mục **Chợ cá**, **Chăm hồ**, **Nâng cấp**, **Nhật ký**. Nút **Tua 30 ngày** trong **Nhật ký** dùng để thử nhanh vòng đời và sinh sản.
+- Ngày trong game, tổng cá, chất lượng nước và số xu hiện trên hồ. **Quản lý** mở năm mục **Chợ cá**, **Chăm hồ**, **Nâng cấp**, **Sổ tay**, **Nhật ký**. Nút **Tua 30 ngày** trong **Nhật ký** dùng để thử nhanh vòng đời và sinh sản.
 - Bể chính có **sức chứa vô hạn**. Mọi con cá còn sống đều được vẽ. Khi đàn đông, giảm kích thước và đơn giản hóa nét vẽ để hồ vẫn dễ nhìn.
 - Khi mở rộng mô phỏng, thức ăn, nước và chỗ trú được tính theo **từng khu trong hồ**. Cá tụ gần máy cho ăn tạo thêm tải cho lọc ở khu đó. Cá con ở gần bụi rêu có chỗ trốn cá lớn.
 
@@ -61,8 +61,8 @@ Khi trại đủ lớn, người chơi có thể bàn giao đàn và thiết b�
 
 | Đã có | Phần phát triển tiếp |
 | --- | --- |
-| Chỉ có bảy màu với ba màu đuôi. Cá lớn dần theo tuổi, sinh lứa **20–40**, cá non có thể bị ăn và cá chết khi hết tuổi thọ. | Các loài khác, mô hình trứng và ấp, tập tính chi tiết, sức khỏe riêng, sinh trưởng theo mồi và nước, Sổ tay hồ cá. |
-| Một bể toàn màn hình dọc hoặc ngang. Tất cả cá sống đều được vẽ. Bảng **Quản lý** gom các chức năng. | Tách khu với nước và mồi riêng. Chỗ nuôi betta trống và khu ươm riêng. |
-| Thu xu tự động, máy cho ăn, nạp mồi, lọc, rêu Java, thay nước và vớt xác hàng loạt. | Chỉnh tốc độ rải và kho riêng, dự báo hiệu quả nâng cấp, cây lớn, hiển thị xác cá để vớt từng con, ốc và dịch vụ chăm hồ. |
-| Tìm tối đa một cá giống theo màu đuôi, độ đậm màu và tuổi. Bán chung cá trưởng thành đủ điều kiện. | Lọc và bán theo lứa, lịch sử gây giống, vân, sức khỏe và giá theo từng giai đoạn. |
-| Lưu cục bộ, mô phỏng tối đa 8 giờ, báo cáo tổng hợp, tua 30 ngày. | Nhật ký có nguyên nhân và thời điểm chi tiết. Sang nhượng trại và Danh tiếng. |
+| Năm loài: bảy màu đẻ con, neon, betta, cá chuột và thần tiên đẻ trứng. Ổ trứng có thời gian ấp, tỷ lệ nở và cá bột hao hụt theo loài, nặng hơn khi hồ đói hoặc bẩn. Neon chỉ đẻ khi nước từ 70%, đủ đàn 6 con thì kiếm xu nhiều hơn. Betta trống thừa không kiếm xu và có thể chết vì đánh nhau. Cá chuột không săn cá con, ăn mồi thừa, trứng nở tốt hơn khi rêu dày. Cặp thần tiên non có thể ăn lứa đầu. **Sổ tay hồ cá** cho xem tập tính và mua cặp giống. | Sức khỏe riêng, sinh trưởng theo mồi và nước, bể ấp tối cho neon. |
+| Một bể toàn màn hình dọc hoặc ngang. Tất cả cá sống đều được vẽ, mỗi loài có dáng ký tự và cách bơi riêng. Bảng **Quản lý** gom các chức năng. | Tách khu với nước và mồi riêng. Chỗ nuôi betta trống và khu ươm riêng. |
+| Thu xu tự động. Máy cho ăn nâng tốc độ rải, **Kho mồi** nâng dung tích, chọn mức rải Thưa / Vừa / Dày. Lọc, rêu Java, thay nước. Xác cá nằm dưới đáy, chạm để vớt từng con hoặc **Vớt tất cả**. **Ốc ramshorn** rỉa xác kể cả lúc offline. Màn nâng cấp dự báo xu/phút và thời gian hoàn vốn bằng cách chạy thử 30 phút. | Cây lớn, dịch vụ chăm hồ. |
+| Tìm tối đa một cá giống bảy màu theo màu đuôi, độ đậm màu và tuổi. Bán chung cá trưởng thành của mọi loài. | Lọc và bán theo lứa, lịch sử gây giống, vân, sức khỏe và giá theo từng giai đoạn. |
+| Lưu cục bộ, mô phỏng tối đa 8 giờ, báo cáo tổng hợp gồm trứng, cá nở, hao hụt, đánh nhau và ốc dọn xác, tua 30 ngày. | Nhật ký có nguyên nhân và thời điểm chi tiết. Sang nhượng trại và Danh tiếng. |

@@ -57,6 +57,14 @@ void main() {
 
       await tester.binding.setSurfaceSize(portrait);
       await tester.pump();
+      final handbook = find.text('Sổ tay');
+      await tester.ensureVisible(handbook);
+      await tester.tap(handbook);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Paracheirodon innesi'), findsOneWidget);
+      expect(find.text('Mua cặp giống · 140 xu'), findsOneWidget);
+
       final journal = find.text('Nhật ký');
       await tester.ensureVisible(journal);
       await tester.tap(journal);
