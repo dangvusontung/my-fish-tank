@@ -570,6 +570,7 @@ class _Market extends StatelessWidget {
     final candidate = pond.candidate;
     final sale = pond.forSale;
     final ready = sale.length;
+    final comets = sale.where((fish) => fish.isComet).length;
     final bySpecies = <Species, int>{};
     for (final item in sale) {
       bySpecies[item.species] = (bySpecies[item.species] ?? 0) + 1;
@@ -582,6 +583,11 @@ class _Market extends StatelessWidget {
             '$ready cá sẵn sàng bán',
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
+          if (comets > 0)
+            Text(
+              '$comets Legendary trong lô',
+              style: const TextStyle(color: Color(0xffe4ccfb)),
+            ),
           if (bySpecies.length > 1)
             Text(
               [
@@ -623,11 +629,25 @@ class _Market extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  _Glyph(candidate.species, tail: candidate.tail),
+                  if (candidate.isComet)
+                    const Text(
+                      '⋏((•›',
+                      style: TextStyle(
+                        fontSize: 21,
+                        color: Color(0xffe4b8ff),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    )
+                  else
+                    _Glyph(candidate.species, tail: candidate.tail),
                   const SizedBox(width: 9),
                   Expanded(
                     child: Text(
-                      'Đề cử · ${candidate.sex == Sex.male ? 'Trống' : 'Mái'} ${candidate.tail.label}\n${candidate.age(pond.time).floor()} ngày tuổi',
+                      candidate.isComet
+                          ? 'Legendary · Đuôi sao chổi\n'
+                                '${candidate.sex == Sex.male ? 'Trống' : 'Mái'} · ${candidate.age(pond.time).floor()} ngày · ${candidate.price} xu'
+                          : 'Đề cử · ${candidate.sex == Sex.male ? 'Trống' : 'Mái'} ${candidate.tail.label}\n'
+                                '${candidate.age(pond.time).floor()} ngày tuổi',
                       style: const TextStyle(
                         color: Color(0xffe4ccfb),
                         fontSize: 13,
@@ -937,6 +957,7 @@ class _ReportPanel extends StatelessWidget {
     final events = <String>[
       if (report.coins > 0) '+${report.coins} xu',
       if (report.born > 0) '${report.born} cá con chào đời',
+      if (report.cometsBorn > 0) '${report.cometsBorn} Đuôi sao chổi chào đời',
       if (report.laid > 0) '${report.laid} trứng được đẻ',
       if (report.hatched > 0) '${report.hatched} cá bột nở',
       if (report.clutchesLost > 0)

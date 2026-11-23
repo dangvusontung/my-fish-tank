@@ -26,6 +26,14 @@ Mỗi con có tuổi, giới tính, màu hoặc vân, sức khỏe và vòng đ�
 - Cá bảy màu trưởng thành có thể ăn cá con mới đẻ, kể cả con của nó. Nguy cơ trong game phụ thuộc vào số cá lớn, cỡ cá non và chỗ trú. Cá con có thể lao vào rêu khi bị đuổi. Khu ươm riêng chặn việc cá lớn trong bể chính săn cá non. Tỷ lệ bị ăn thay đổi theo điều kiện của hồ. [Nilsson và cộng sự](https://pubmed.ncbi.nlm.nih.gov/21516310/) · [Loekle và cộng sự](https://www.sciencedirect.com/science/article/pii/S016310478290749X)
 - **Sổ tay hồ cá** cho xem tập tính từng loài trước khi mua. Ngưỡng nuôi theo đàn, thời gian ấp và tỷ lệ nở trong game sẽ được xác định khi triển khai từng loài.
 
+### Rarity · Biến thể cá bảy màu
+
+- Độ hiếm gắn với một biến thể có thể truyền cho cá con. Mỗi biến thể Legendary có dáng riêng và chuyển động nhận biết được trong đàn. Thẻ trong **Chợ cá** hiện tên biến thể, bậc hiếm và giá bán để người chơi cân nhắc giữ giống.
+- **Đuôi sao chổi** là mẫu Legendary đầu tiên. Thân mint và mắt chấm trắng giữ dáng cá bảy màu. Đuôi xẻ thành hai nhánh dài, từ cam ở gốc sang tím ở ngọn. Hai nhánh quẫy lệch nhịp.
+- Khi cá đang bơi, hai nhánh để lại vệt tím theo đường đuôi vừa đi qua. Vệt dài hơn khi bơi nhanh, mờ dần sau đuôi và còn lại trong chốc lát khi cá giảm tốc. Lúc quay đầu, chót đuôi uốn theo sau và để lại 2–3 đốm tím tan nhanh.
+- Mốc để thử cân bằng cho mỗi cá con từ cặp phổ thông là **94% Common**, **5,5% Uncommon**, **0,45% Rare** và **0,05% Legendary**. Tính một lần lúc sinh, kể cả offline. Với một biến thể Legendary cụ thể, tỷ lệ di truyền đề xuất là **3%** khi một trong hai bố mẹ có biến thể đó và **10%** khi cả hai có. Đây là thông số game để thử nghiệm.
+- Flutter đã dùng các tỷ lệ Legendary trên cho **Đuôi sao chổi**. Trong bản thử, nó bán giá bằng **3 lần** cá thường cùng độ đậm màu. Chợ ưu tiên đề cử một con Legendary đủ tuổi khi nó phù hợp hơn cá giống cùng giới tính. Các bậc Uncommon và Rare còn trong thiết kế.
+
 ## Chăm hồ và nâng cấp
 
 | Phần | Tác dụng trong thiết kế |
@@ -61,8 +69,12 @@ Khi trại đủ lớn, người chơi có thể bàn giao đàn và thiết b�
 
 | Đã có | Phần phát triển tiếp |
 | --- | --- |
-| Năm loài: bảy màu đẻ con, neon, betta, cá chuột và thần tiên đẻ trứng. Ổ trứng có thời gian ấp, tỷ lệ nở và cá bột hao hụt theo loài, nặng hơn khi hồ đói hoặc bẩn. Neon chỉ đẻ khi nước từ 70%, đủ đàn 6 con thì kiếm xu nhiều hơn. Betta trống thừa không kiếm xu và có thể chết vì đánh nhau. Cá chuột không săn cá con, ăn mồi thừa, trứng nở tốt hơn khi rêu dày. Cặp thần tiên non có thể ăn lứa đầu. **Sổ tay hồ cá** cho xem tập tính và mua cặp giống. | Sức khỏe riêng, sinh trưởng theo mồi và nước, bể ấp tối cho neon. |
+| Năm loài: bảy màu đẻ con, có biến thể Legendary **Đuôi sao chổi**; neon, betta, cá chuột và thần tiên đẻ trứng. Ổ trứng có thời gian ấp, tỷ lệ nở và cá bột hao hụt theo loài, nặng hơn khi hồ đói hoặc bẩn. Neon chỉ đẻ khi nước từ 70%, đủ đàn 6 con thì kiếm xu nhiều hơn. Betta trống thừa không kiếm xu và có thể chết vì đánh nhau. Cá chuột không săn cá con, ăn mồi thừa, trứng nở tốt hơn khi rêu dày. Cặp thần tiên non có thể ăn lứa đầu. **Sổ tay hồ cá** cho xem tập tính và mua cặp giống. | Thêm biến thể và các bậc hiếm khác, sức khỏe riêng, sinh trưởng theo mồi và nước, bể ấp tối cho neon. |
 | Một bể toàn màn hình dọc hoặc ngang. Tất cả cá sống đều được vẽ, mỗi loài có dáng ký tự và cách bơi riêng. Bảng **Quản lý** gom các chức năng. | Tách khu với nước và mồi riêng. Chỗ nuôi betta trống và khu ươm riêng. |
 | Thu xu tự động. Máy cho ăn nâng tốc độ rải, **Kho mồi** nâng dung tích, chọn mức rải Thưa / Vừa / Dày. Lọc, rêu Java, thay nước. Xác cá nằm dưới đáy, chạm để vớt từng con hoặc **Vớt tất cả**. **Ốc ramshorn** rỉa xác kể cả lúc offline. Màn nâng cấp dự báo xu/phút và thời gian hoàn vốn bằng cách chạy thử 30 phút. | Cây lớn, dịch vụ chăm hồ. |
-| Tìm tối đa một cá giống bảy màu theo màu đuôi, độ đậm màu và tuổi. Bán chung cá trưởng thành của mọi loài. | Lọc và bán theo lứa, lịch sử gây giống, vân, sức khỏe và giá theo từng giai đoạn. |
+| Tìm tối đa một cá giống bảy màu theo biến thể, màu đuôi, độ đậm màu và tuổi. Bán chung cá trưởng thành của mọi loài, có hiển thị số cá Legendary trong lô. | Lọc và bán theo lứa, lịch sử gây giống, vân, sức khỏe và giá theo từng giai đoạn. |
 | Lưu cục bộ, mô phỏng tối đa 8 giờ, báo cáo tổng hợp gồm trứng, cá nở, hao hụt, đánh nhau và ốc dọn xác, tua 30 ngày. | Nhật ký có nguyên nhân và thời điểm chi tiết. Sang nhượng trại và Danh tiếng. |
+
+## Hướng mở rộng · Hệ sinh thái trên cạn
+
+Khu trên cạn là **một hệ sinh thái riêng**, tách khỏi hồ thủy sinh. Loài, môi trường và vòng chơi của khu này sẽ được bàn sau.
