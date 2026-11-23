@@ -80,13 +80,52 @@ class AquariumState extends State<Aquarium>
 }
 
 class _Pose {
-  _Pose(this.fish, this.phase, this.x, this.y, this.yaw);
+  _Pose(this.fish, this.phase, this.x, this.y, this.yaw)
+    : trail = fish.isComet ? [] : null;
   final Fish fish;
   final double phase;
+  final List<_CometTrailSample>? trail;
   double x;
   double y;
   double yaw;
   double pitch = 0;
+
+  double get facing => (yaw < 0 ? -1 : 1) * math.max(.13, yaw.abs());
+}
+
+const _trailLifetime = .65;
+
+(Offset, Offset) _cometTips(double phase, double time) {
+  final flap = time * 20 + phase;
+  return (
+    Offset(-71, -21 + 4.5 * math.sin(flap)),
+    Offset(-70, 21 + 4.5 * math.sin(flap - 1.25)),
+  );
+}
+
+class _CometTrailSample {
+  _CometTrailSample(_Pose pose, this.time)
+    : center = Offset(pose.x, pose.y),
+      facing = pose.facing,
+      pitch = pose.pitch,
+      tips = _cometTips(pose.phase, time);
+
+  final double time;
+  final Offset center;
+  final double facing;
+  final double pitch;
+  final (Offset, Offset) tips;
+
+  Offset tipInTank(Size size, double scale, {required bool upper}) {
+    final tip = upper ? tips.$1 : tips.$2;
+    final x = tip.dx * facing;
+    final cosine = math.cos(pitch);
+    final sine = math.sin(pitch);
+    return Offset(
+      center.dx * size.width + (x * cosine - tip.dy * sine) * scale,
+      center.dy * size.height + (x * sine + tip.dy * cosine) * scale,
+    );
+  }
 }
 
 class _TankMotion extends ChangeNotifier {
@@ -138,6 +177,16 @@ class _TankMotion extends ChangeNotifier {
       pose.yaw += (direction - pose.yaw) * delta * 7;
       final pitch = (dy * 1.8).clamp(-.23, .23) * pose.yaw.sign;
       pose.pitch += (pitch - pose.pitch) * delta * 5;
+      if (pose.trail case final trail?) {
+        if (reduced) {
+          trail.clear();
+        } else {
+          trail.removeWhere((sample) => time - sample.time >= _trailLifetime);
+          if (trail.isEmpty || time - trail.last.time >= .042) {
+            trail.add(_CometTrailSample(pose, time));
+          }
+        }
+      }
     }
     notifyListeners();
   }
@@ -187,6 +236,10 @@ class _AquariumPainter extends CustomPainter {
 
   final _TankMotion motion;
   static const _mint = Color(0xff8af9d6);
+  static const _cometViolet = Color(0xffbd83ff);
+  static final _cometTail = const LinearGradient(
+    colors: [_cometViolet, Color(0xfff69eda), Color(0xffffab59)],
+  ).createShader(const Rect.fromLTRB(-71, -25, -22, 25));
   static const _glass = RadialGradient(
     center: Alignment(.03, -.90),
     radius: 1.12,
@@ -270,10 +323,19 @@ class _AquariumPainter extends CustomPainter {
     final spriteScale =
         (size.shortestSide / 420).clamp(.77, 1.24) *
         (1 / math.sqrt(density)).clamp(.42, 1);
+    if (!motion.reduced) {
+      for (final pose in motion.poses.values) {
+        if (pose.trail case final trail? when trail.length > 1) {
+          _drawCometTrail(canvas, size, pose, trail, spriteScale, line, paint);
+        }
+      }
+    }
     var index = 0;
     for (final pose in motion.poses.values) {
       final detailed =
-          index < detailedFish || motion.pond.breeders.contains(pose.fish.id);
+          index < detailedFish ||
+          pose.fish.isComet ||
+          motion.pond.breeders.contains(pose.fish.id);
       _drawFish(
         canvas,
         size,
@@ -295,6 +357,48 @@ class _AquariumPainter extends CustomPainter {
         final remaining = (2.3 - sinceDrop - i * .065).clamp(0, 1).toDouble();
         paint.color = const Color(0xffffcf83).withValues(alpha: remaining);
         canvas.drawCircle(Offset(x, y - i % 4 * 4), 1 + i % 3 * .45, paint);
+      }
+    }
+  }
+
+  double _fishScale(Fish fish, double scale) =>
+      scale * (.26 + fish.growth(motion.pond.time) * .70);
+
+  void _drawCometTrail(
+    Canvas canvas,
+    Size size,
+    _Pose pose,
+    List<_CometTrailSample> trail,
+    double scale,
+    Paint line,
+    Paint fill,
+  ) {
+    scale = _fishScale(pose.fish, scale);
+    final now = _CometTrailSample(pose, motion.time);
+    for (final upper in [true, false]) {
+      var previous = now.tipInTank(size, scale, upper: upper);
+      var samplesBack = 0;
+      for (final sample in trail.reversed) {
+        final tip = sample.tipInTank(size, scale, upper: upper);
+        final freshness = 1 - (motion.time - sample.time) / _trailLifetime;
+        final strength = freshness * freshness;
+        line
+          ..color = _cometViolet.withValues(alpha: strength * .50)
+          ..strokeWidth = math.max(.6, scale * (1.0 + strength * 3.0));
+        canvas.drawLine(previous, tip, line);
+        samplesBack++;
+        final mote = upper
+            ? samplesBack == 4 || samplesBack == 12
+            : samplesBack == 8;
+        if (mote) {
+          fill.color = _cometViolet.withValues(alpha: freshness * .78);
+          canvas.drawCircle(
+            tip + Offset(0, upper ? -2.5 : 2.5),
+            1 + strength * 1.2,
+            fill,
+          );
+        }
+        previous = tip;
       }
     }
   }
@@ -349,13 +453,11 @@ class _AquariumPainter extends CustomPainter {
     required bool detailed,
   }) {
     final fish = pose.fish;
-    final growth = fish.growth(motion.pond.time);
-    scale *= .26 + growth * .70;
+    scale = _fishScale(fish, scale);
     canvas.save();
     canvas.translate(pose.x * size.width, pose.y * size.height);
     canvas.rotate(pose.pitch);
-    final facing = pose.yaw < 0 ? -1 : 1;
-    canvas.scale(scale * facing * math.max(.13, pose.yaw.abs()), scale);
+    canvas.scale(scale * pose.facing, scale);
     final tail = tailColor(fish.tail);
     if (!detailed) {
       final flap = math.sin(time * 21 + pose.phase) * 2;
@@ -370,7 +472,7 @@ class _AquariumPainter extends CustomPainter {
       canvas.restore();
       return;
     }
-    void glow(Path path, Color color, double width) {
+    void glow(Path path, Color color, double width, {Shader? shader}) {
       paint
         ..strokeWidth = width + 1
         ..color = color.withValues(alpha: .57)
@@ -379,19 +481,32 @@ class _AquariumPainter extends CustomPainter {
       paint
         ..strokeWidth = width
         ..color = color
+        ..shader = shader
         ..maskFilter = null;
       canvas.drawPath(path, paint);
+      paint.shader = null;
     }
 
-    final flap = math.sin(time * 21 + pose.phase);
-    final spread = fish.sex == Sex.male ? 10 + fish.vividness * .042 : 10.0;
-    for (final offset in fish.sex == Sex.male ? [0, 7] : [4]) {
-      final tip = -20.0 + offset + flap * 2;
-      final path = Path()
-        ..moveTo(tip - 8 - flap * 2, -spread + flap)
-        ..lineTo(tip, 0)
-        ..lineTo(tip - 8 - flap * 2, spread + flap);
-      glow(path, tail, 3.0);
+    if (fish.isComet) {
+      final (upper, lower) = _cometTips(pose.phase, time);
+      final fork = Path()
+        ..moveTo(upper.dx, upper.dy)
+        ..quadraticBezierTo(-56, -20, -41, -7)
+        ..quadraticBezierTo(-28, 0, -22, 0)
+        ..quadraticBezierTo(-28, 0, -41, 7)
+        ..quadraticBezierTo(-56, 20, lower.dx, lower.dy);
+      glow(fork, _cometViolet, 3.7, shader: _cometTail);
+    } else {
+      final flap = math.sin(time * 21 + pose.phase);
+      final spread = fish.sex == Sex.male ? 10 + fish.vividness * .042 : 10.0;
+      for (final offset in fish.sex == Sex.male ? [0, 7] : [4]) {
+        final tip = -20.0 + offset + flap * 2;
+        final path = Path()
+          ..moveTo(tip - 8 - flap * 2, -spread + flap)
+          ..lineTo(tip, 0)
+          ..lineTo(tip - 8 - flap * 2, spread + flap);
+        glow(path, tail, 3.0);
+      }
     }
     for (final x in [-7.0, 2.0]) {
       final arc = Path()

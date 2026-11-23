@@ -32,6 +32,7 @@ Mỗi con có tuổi, giới tính, màu hoặc vân, sức khỏe và vòng đ�
 - **Đuôi sao chổi** là mẫu Legendary đầu tiên. Thân mint và mắt chấm trắng giữ dáng cá bảy màu. Đuôi xẻ thành hai nhánh dài, từ cam ở gốc sang tím ở ngọn. Hai nhánh quẫy lệch nhịp.
 - Khi cá đang bơi, hai nhánh để lại vệt tím theo đường đuôi vừa đi qua. Vệt dài hơn khi bơi nhanh, mờ dần sau đuôi và còn lại trong chốc lát khi cá giảm tốc. Lúc quay đầu, chót đuôi uốn theo sau và để lại 2–3 đốm tím tan nhanh.
 - Mốc để thử cân bằng cho mỗi cá con từ cặp phổ thông là **94% Common**, **5,5% Uncommon**, **0,45% Rare** và **0,05% Legendary**. Tính một lần lúc sinh, kể cả offline. Với một biến thể Legendary cụ thể, tỷ lệ di truyền đề xuất là **3%** khi một trong hai bố mẹ có biến thể đó và **10%** khi cả hai có. Đây là thông số game để thử nghiệm.
+- Flutter đã dùng các tỷ lệ Legendary trên cho **Đuôi sao chổi**. Trong bản thử, nó bán giá bằng **3 lần** cá thường cùng độ đậm màu. Chợ ưu tiên đề cử một con Legendary đủ tuổi khi nó phù hợp hơn cá giống cùng giới tính. Các bậc Uncommon và Rare còn trong thiết kế.
 
 ## Chăm hồ và nâng cấp
 
@@ -68,8 +69,12 @@ Khi trại đủ lớn, người chơi có thể bàn giao đàn và thiết b�
 
 | Đã có | Phần phát triển tiếp |
 | --- | --- |
-| Chỉ có bảy màu với ba màu đuôi. Cá lớn dần theo tuổi, sinh lứa **20–40**, cá non có thể bị ăn và cá chết khi hết tuổi thọ. | Biến thể hiếm và hiệu ứng bơi riêng, các loài khác, mô hình trứng và ấp, tập tính chi tiết, sức khỏe riêng, sinh trưởng theo mồi và nước, Sổ tay hồ cá. |
+| Bảy màu với ba màu đuôi và biến thể Legendary **Đuôi sao chổi**. Cá lớn dần theo tuổi, sinh lứa **20–40**, cá non có thể bị ăn và cá chết khi hết tuổi thọ. | Thêm biến thể và các bậc hiếm khác, các loài khác, mô hình trứng và ấp, tập tính chi tiết, sức khỏe riêng, sinh trưởng theo mồi và nước, Sổ tay hồ cá. |
 | Một bể toàn màn hình dọc hoặc ngang. Tất cả cá sống đều được vẽ. Bảng **Quản lý** gom các chức năng. | Tách khu với nước và mồi riêng. Chỗ nuôi betta trống và khu ươm riêng. |
 | Thu xu tự động, máy cho ăn, nạp mồi, lọc, rêu Java, thay nước và vớt xác hàng loạt. | Chỉnh tốc độ rải và kho riêng, dự báo hiệu quả nâng cấp, cây lớn, hiển thị xác cá để vớt từng con, ốc và dịch vụ chăm hồ. |
-| Tìm tối đa một cá giống theo màu đuôi, độ đậm màu và tuổi. Bán chung cá trưởng thành đủ điều kiện. | Lọc và bán theo lứa, lịch sử gây giống, vân, sức khỏe và giá theo từng giai đoạn. |
+| Tìm tối đa một cá giống theo biến thể, màu đuôi, độ đậm màu và tuổi. Bán chung cá trưởng thành đủ điều kiện, có hiển thị số cá Legendary trong lô. | Lọc và bán theo lứa, lịch sử gây giống, vân, sức khỏe và giá theo từng giai đoạn. |
 | Lưu cục bộ, mô phỏng tối đa 8 giờ, báo cáo tổng hợp, tua 30 ngày. | Nhật ký có nguyên nhân và thời điểm chi tiết. Sang nhượng trại và Danh tiếng. |
+
+## Hướng mở rộng · Hệ sinh thái trên cạn
+
+Khu trên cạn là **một hệ sinh thái riêng**, tách khỏi hồ thủy sinh. Loài, môi trường và vòng chơi của khu này sẽ được bàn sau.

@@ -49,4 +49,66 @@ void main() {
     expect(after.eaten, before.eaten);
     expect(restored.toJson(), continuous.toJson());
   });
+
+  test('loads a legacy save and keeps a new Legendary fish through a sale', () {
+    final saved = Pond.starter().toJson()..remove('raritySeed');
+    final fish = (saved['fish']! as List).cast<Map<String, Object>>();
+    for (final item in fish) {
+      item.remove('isComet');
+    }
+    final pond = Pond.fromJson(saved);
+    expect(pond.fish.every((item) => !item.isComet), isTrue);
+
+    final comet = Fish.fromJson({
+      ...pond.fish[2].toJson(),
+      'isComet': true,
+      'tail': Tail.violet.name,
+    });
+    expect(comet.price, pond.fish[2].price * 3);
+    pond.fish[2] = comet;
+    expect(pond.candidate, comet);
+
+    pond.sell(keepCandidate: true);
+    final restored = Pond.fromJson(pond.toJson());
+    expect(restored.breeders, contains(comet.id));
+    expect(
+      restored.fish.singleWhere((item) => item.id == comet.id).isComet,
+      isTrue,
+    );
+    expect(restored.raritySeed, pond.raritySeed);
+  });
+
+  test('applies the same birth roll to mutation and inheritance', () {
+    // The first roll for each seed falls between the relevant probability cutoffs.
+    for (final (parents, seed, expected) in [
+      (0, 1972, true),
+      (0, 1974, false),
+      (1, 2023, true),
+      (1, 2126, false),
+      (2, 2126, true),
+      (2, 2358, false),
+    ]) {
+      final pond = Pond.starter()..raritySeed = seed;
+      for (var index = 0; index < parents; index++) {
+        pond.fish[index] = Fish.fromJson({
+          ...pond.fish[index].toJson(),
+          'isComet': true,
+        });
+      }
+      final firstNewborn = pond.nextId;
+      final report = pond.advance(const Duration(seconds: 4 * Pond.daySeconds));
+      expect(report.born, greaterThan(0));
+      expect(
+        pond.fish.singleWhere((item) => item.id == firstNewborn).isComet,
+        expected,
+        reason: 'parents: $parents, seed: $seed',
+      );
+      expect(
+        report.cometsBorn,
+        pond.fish
+            .where((fish) => fish.id >= firstNewborn && fish.isComet)
+            .length,
+      );
+    }
+  });
 }

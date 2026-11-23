@@ -31,6 +31,7 @@ class Fish {
     required this.adultDay,
     required this.lifeDays,
     required this.vividness,
+    this.isComet = false,
   });
 
   factory Fish.fromJson(Map<String, dynamic> json) => Fish(
@@ -41,6 +42,7 @@ class Fish {
     adultDay: json['adultDay'] as int,
     lifeDays: json['lifeDays'] as int,
     vividness: json['vividness'] as int,
+    isComet: json['isComet'] as bool? ?? false,
   );
 
   final int id;
@@ -50,11 +52,12 @@ class Fish {
   final int adultDay;
   final int lifeDays;
   final int vividness;
+  final bool isComet;
 
   double age(double time) => (time - bornAt) / Pond.daySeconds;
   double growth(double time) => (age(time) / adultDay).clamp(0, 1).toDouble();
   bool isAdult(double time) => age(time) >= adultDay;
-  int get price => 20 + vividness ~/ 3;
+  int get price => (20 + vividness ~/ 3) * (isComet ? 3 : 1);
 
   Map<String, Object> toJson() => {
     'id': id,
@@ -64,11 +67,13 @@ class Fish {
     'adultDay': adultDay,
     'lifeDays': lifeDays,
     'vividness': vividness,
+    'isComet': isComet,
   };
 }
 
 class PondReport {
   int born = 0;
+  int cometsBorn = 0;
   int grown = 0;
   int eaten = 0;
   int died = 0;
@@ -109,6 +114,7 @@ class Pond {
       ..seed = json['seed'] as int
       ..preference = Tail.values.byName(json['preference'] as String);
     final levels = json['levels'] as Map<String, dynamic>;
+    pond.raritySeed = json['raritySeed'] as int? ?? pond.raritySeed;
     for (final equipment in Equipment.values) {
       pond.levels[equipment] = levels[equipment.name] as int;
     }
@@ -145,6 +151,7 @@ class Pond {
   int dead = 0;
   int nextId = 1;
   int seed = 443016;
+  int raritySeed = math.Random().nextInt(0x80000000);
   Tail preference = Tail.amber;
 
   int get day => time ~/ daySeconds + 1;
@@ -163,18 +170,28 @@ class Pond {
   Fish? get candidate {
     Fish? best;
     for (final item in forSale) {
-      if (item.tail != preference || item.age(time) > 220) continue;
+      if (!item.isComet && (item.tail != preference || item.age(time) > 220)) {
+        continue;
+      }
       final current = fish
           .where(
             (parent) => breeders.contains(parent.id) && parent.sex == item.sex,
           )
           .firstOrNull;
-      if (current != null &&
-          current.tail == preference &&
-          _rank(item) <= _rank(current) + 7) {
-        continue;
+      if (current != null) {
+        if (current.isComet && !item.isComet) continue;
+        if (current.isComet == item.isComet &&
+            (item.isComet || current.tail == preference) &&
+            _rank(item) <= _rank(current) + 7) {
+          continue;
+        }
       }
-      if (best == null || _rank(item) > _rank(best)) best = item;
+      if (best == null ||
+          (item.isComet == best.isComet
+              ? _rank(item) > _rank(best)
+              : item.isComet)) {
+        best = item;
+      }
     }
     return best;
   }
@@ -191,7 +208,23 @@ class Pond {
     return (seed >> 8) % upperBound;
   }
 
-  void _addFish({int age = 0, Sex? sex, Tail? tail, int? vividness}) {
+  bool _rollComet(int cometParents) {
+    final odds = switch (cometParents) {
+      2 => .10,
+      1 => .03,
+      _ => .0005,
+    };
+    raritySeed = (1664525 * raritySeed + 1013904223) & 0xffffffff;
+    return raritySeed / 0x100000000 < odds;
+  }
+
+  void _addFish({
+    int age = 0,
+    Sex? sex,
+    Tail? tail,
+    int? vividness,
+    bool isComet = false,
+  }) {
     fish.add(
       Fish(
         id: nextId++,
@@ -201,6 +234,7 @@ class Pond {
         adultDay: 54 + _random(15),
         lifeDays: 395 + _random(150),
         vividness: vividness ?? 42 + _random(45),
+        isComet: isComet,
       ),
     );
   }
@@ -258,12 +292,16 @@ class Pond {
             .where((item) => breeders.contains(item.id))
             .toList();
         final count = 20 + _random(21);
+        final cometParents = parents.where((parent) => parent.isComet).length;
         for (var i = 0; i < count; i++) {
           final parent = parents[_random(parents.length)];
+          final comet = _rollComet(cometParents);
           _addFish(
             tail: _random(100) < 77 ? parent.tail : null,
             vividness: (parent.vividness + _random(31) - 15).clamp(28, 100),
+            isComet: comet,
           );
+          if (comet) report.cometsBorn++;
         }
         report.born += count;
         nextLitter = time + (25 + _random(11)) * daySeconds;
@@ -373,6 +411,7 @@ class Pond {
     'dead': dead,
     'nextId': nextId,
     'seed': seed,
+    'raritySeed': raritySeed,
     'preference': preference.name,
     'levels': {for (final entry in levels.entries) entry.key.name: entry.value},
     'breeders': breeders.toList(),
