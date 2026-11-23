@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_fish_tank/main.dart';
 import 'package:my_fish_tank/src/aquarium.dart';
+import 'package:my_fish_tank/src/pond.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
@@ -89,4 +92,59 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+
+  testWidgets('keeps zone labels and fish glyphs on one line when narrow', (
+    tester,
+  ) async {
+    final pond = Pond.starter()
+      ..coins = 5000
+      ..levels[Equipment.nursery] = 1
+      ..levels[Equipment.bettaCups] = 1
+      ..autoNursery = false;
+    pond.buyPair(Species.neon);
+    pond.advance(const Duration(seconds: 15 * Pond.daySeconds));
+    expect(
+      pond.litterLots
+          .map(pond.litterById)
+          .any((litter) => litter?.species == Species.neon),
+      isTrue,
+    );
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.withData({
+          'pond-v1': jsonEncode({
+            'savedAt': DateTime.now().millisecondsSinceEpoch,
+            'pond': pond.toJson(),
+          }),
+        });
+    await tester.binding.setSurfaceSize(const Size(360, 780));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(const FishTankApp());
+    await tester.pump();
+    await tester.pump();
+
+    double lines(Finder text) {
+      final style = tester.widget<Text>(text).style;
+      final height = tester.getSize(text).height;
+      return height / ((style?.fontSize ?? 14) * 1.6);
+    }
+
+    final cups = find.textContaining('Ngăn betta');
+    expect(cups, findsOneWidget);
+    expect(lines(cups), lessThan(1.5));
+
+    await tester.tap(find.text('Quản lý'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    final neon = find.text(Species.neon.glyph);
+    expect(neon, findsWidgets);
+    for (final element in neon.evaluate()) {
+      expect(
+        tester.getSize(find.byWidget(element.widget)).height,
+        lessThan(30),
+      );
+    }
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }

@@ -207,4 +207,50 @@ void main() {
     expect(aquarium.zoom, 1);
     expect(zooms.last, 1);
   });
+
+  testWidgets('snails fan out instead of piling up on a corpse', (
+    tester,
+  ) async {
+    final json = (Pond.starter()..levels[Equipment.snails] = 7).toJson()
+      ..['corpses'] = [
+        Corpse(
+          id: 500,
+          species: Species.guppy,
+          tail: Tail.amber,
+          diedAt: 0,
+        ).toJson(),
+      ];
+    final pond = Pond.fromJson(jsonDecode(jsonEncode(json)));
+    final key = GlobalKey<AquariumState>();
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 360,
+            height: 640,
+            child: Aquarium(key: key, pond: pond, onFeed: () {}),
+          ),
+        ),
+      ),
+    );
+    // Let all 21 snails crawl to the corpse.
+    for (var frame = 0; frame < 3000; frame++) {
+      await tester.pump(const Duration(milliseconds: 33));
+    }
+
+    final spots = key.currentState!.snailSpots;
+    expect(spots, hasLength(21));
+    for (var a = 0; a < spots.length; a++) {
+      for (var b = a + 1; b < spots.length; b++) {
+        if (spots[a].dy != spots[b].dy) continue;
+        expect(
+          (spots[a].dx - spots[b].dx).abs(),
+          greaterThan(.04),
+          reason: 'snails $a and $b overlap',
+        );
+      }
+    }
+  });
 }

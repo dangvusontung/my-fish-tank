@@ -20,7 +20,17 @@ enum Equipment {
   storage('Kho mồi', 'Máy chứa thêm 20 phần mồi mỗi cấp.', 70),
   filter('Bộ lọc', 'Giảm chất thải trong hồ.', 95),
   javaMoss('Rêu Java', 'Cho cá con chỗ trú, giúp trứng cá chuột bám.', 75),
-  snails('Ốc ramshorn', 'Thêm 3 ốc tự rỉa xác cá, kể cả lúc vắng nhà.', 60);
+  snails('Ốc ramshorn', 'Thêm 3 ốc tự rỉa xác cá, kể cả lúc vắng nhà.', 60),
+  nursery(
+    'Khu ươm',
+    'Bể riêng có nước và mồi riêng. Cá lớn không săn được cá con ở đây.',
+    160,
+  ),
+  bettaCups(
+    'Ngăn betta',
+    'Ngăn riêng cho betta trống thừa, khỏi đánh nhau.',
+    90,
+  );
 
   const Equipment(this.label, this.detail, this.price);
   final String label;
@@ -40,8 +50,19 @@ enum FeederMode {
   final double threshold;
 }
 
+/// Where a fish lives. Betta cups are dividers inside the main tank, so
+/// they share its water and food.
+enum Zone {
+  main('Bể chính'),
+  nursery('Khu ươm'),
+  cups('Ngăn betta');
+
+  const Zone(this.label);
+  final String label;
+}
+
 class Fish {
-  const Fish({
+  Fish({
     required this.id,
     this.species = Species.guppy,
     required this.sex,
@@ -51,6 +72,8 @@ class Fish {
     required this.lifeDays,
     required this.vividness,
     this.isComet = false,
+    this.zone = Zone.main,
+    this.litter,
   });
 
   factory Fish.fromJson(Map<String, dynamic> json) => Fish(
@@ -63,6 +86,8 @@ class Fish {
     lifeDays: json['lifeDays'] as int,
     vividness: json['vividness'] as int,
     isComet: json['isComet'] as bool? ?? false,
+    zone: Zone.values.byName(json['zone'] as String? ?? 'main'),
+    litter: json['litter'] as int?,
   );
 
   final int id;
@@ -76,6 +101,10 @@ class Fish {
 
   /// Legendary comet-tail guppy variant.
   final bool isComet;
+  Zone zone;
+
+  /// The [Litter] this fish was born in, if it was bred here.
+  final int? litter;
 
   double age(double time) => (time - bornAt) / Pond.daySeconds;
   double growth(double time) => (age(time) / adultDay).clamp(0, 1).toDouble();
@@ -94,6 +123,8 @@ class Fish {
     'lifeDays': lifeDays,
     'vividness': vividness,
     'isComet': isComet,
+    'zone': zone.name,
+    'litter': ?litter,
   };
 }
 
@@ -106,6 +137,7 @@ class Corpse {
     required this.tail,
     required this.diedAt,
     this.remains = 1,
+    this.zone = Zone.main,
   });
 
   factory Corpse.fromJson(Map<String, dynamic> json) => Corpse(
@@ -114,12 +146,14 @@ class Corpse {
     tail: Tail.values.byName(json['tail'] as String),
     diedAt: (json['diedAt'] as num).toDouble(),
     remains: (json['remains'] as num).toDouble(),
+    zone: Zone.values.byName(json['zone'] as String? ?? 'main'),
   );
 
   final int id;
   final Species species;
   final Tail tail;
   final double diedAt;
+  final Zone zone;
   double remains;
 
   /// Horizontal resting place as a fraction of the tank width.
@@ -131,6 +165,7 @@ class Corpse {
     'tail': tail.name,
     'diedAt': diedAt,
     'remains': remains,
+    'zone': zone.name,
   };
 }
 
@@ -143,6 +178,7 @@ class Clutch {
     required this.hatchAt,
     required this.tails,
     required this.vividness,
+    this.parents = const [],
   });
 
   factory Clutch.fromJson(Map<String, dynamic> json) => Clutch(
@@ -155,6 +191,7 @@ class Clutch {
         Tail.values.byName(tail as String),
     ],
     vividness: (json['vividness'] as List<dynamic>).cast<int>(),
+    parents: (json['parents'] as List<dynamic>? ?? const []).cast<int>(),
   );
 
   final int id;
@@ -165,14 +202,68 @@ class Clutch {
   /// Traits of the two parents, inherited by the fry.
   final List<Tail> tails;
   final List<int> vividness;
+  final List<int> parents;
 
   Map<String, Object> toJson() => {
     'id': id,
     'species': species.name,
     'eggs': eggs,
+    'parents': parents,
     'hatchAt': hatchAt,
     'tails': tails.map((tail) => tail.name).toList(),
     'vividness': vividness,
+  };
+}
+
+/// One birth or spawning, kept for the breeding history and lot sales.
+class Litter {
+  Litter({
+    required this.id,
+    required this.species,
+    required this.bornAt,
+    required this.parents,
+    required this.tails,
+    required this.born,
+    this.eggs,
+    this.comets = 0,
+  });
+
+  factory Litter.fromJson(Map<String, dynamic> json) => Litter(
+    id: json['id'] as int,
+    species: Species.values.byName(json['species'] as String),
+    bornAt: (json['bornAt'] as num).toDouble(),
+    parents: (json['parents'] as List<dynamic>).cast<int>(),
+    tails: [
+      for (final tail in json['tails'] as List<dynamic>)
+        Tail.values.byName(tail as String),
+    ],
+    born: json['born'] as int,
+    eggs: json['eggs'] as int?,
+    comets: json['comets'] as int? ?? 0,
+  );
+
+  final int id;
+  final Species species;
+  final double bornAt;
+  final List<int> parents;
+  final List<Tail> tails;
+  final int born;
+
+  /// Eggs laid, for egg layers. A clutch eaten before hatching has none born.
+  final int? eggs;
+  int comets;
+
+  bool get lost => eggs != null && born == 0;
+
+  Map<String, Object> toJson() => {
+    'id': id,
+    'species': species.name,
+    'bornAt': bornAt,
+    'parents': parents,
+    'tails': tails.map((tail) => tail.name).toList(),
+    'born': born,
+    'eggs': ?eggs,
+    'comets': comets,
   };
 }
 
@@ -188,6 +279,8 @@ class PondReport {
   int fought = 0;
   int fryLost = 0;
   int scavenged = 0;
+  int graduated = 0;
+  int housed = 0;
   int coins = 0;
 
   bool get hasEvents =>
@@ -201,6 +294,8 @@ class PondReport {
           fought +
           fryLost +
           scavenged +
+          graduated +
+          housed +
           coins >
       0;
 }
@@ -264,6 +359,17 @@ class Pond {
       return pond;
     }
     pond.feederMode = FeederMode.values.byName(json['feederMode'] as String);
+    pond
+      ..nurseryWater = (json['nurseryWater'] as num? ?? 100).toDouble()
+      ..nurserySatiety = (json['nurserySatiety'] as num? ?? 80).toDouble()
+      ..nextNurseryFeed = (json['nextNurseryFeed'] as num? ?? 0).toDouble()
+      ..autoNursery = json['autoNursery'] as bool? ?? true
+      ..nextLitterId = json['nextLitterId'] as int? ?? 1;
+    pond.litters.addAll(
+      (json['litters'] as List<dynamic>? ?? const []).map(
+        (value) => Litter.fromJson(value as Map<String, dynamic>),
+      ),
+    );
     for (final entry in (json['nextLitter'] as Map<String, dynamic>).entries) {
       pond.nextLitter[Species.values.byName(entry.key)] = (entry.value as num)
           .toDouble();
@@ -288,6 +394,9 @@ class Pond {
   static const maxOffline = Duration(hours: 8);
   static const waterChangeCost = 12;
   static const fryDays = 8;
+  static const nurseryRoomPerLevel = 60;
+  static const cupsPerLevel = 2;
+  static const keptLitters = 40;
 
   final List<Fish> fish = [];
   final List<Corpse> corpses = [];
@@ -299,7 +408,10 @@ class Pond {
     Equipment.filter: 1,
     Equipment.javaMoss: 1,
     Equipment.snails: 0,
+    Equipment.nursery: 0,
+    Equipment.bettaCups: 0,
   };
+  final List<Litter> litters = [];
   final Map<Species, double> nextLitter = {};
 
   /// Spawnings by the current pair of each species.
@@ -317,6 +429,17 @@ class Pond {
   int raritySeed = math.Random().nextInt(0x80000000);
   Tail preference = Tail.amber;
   FeederMode feederMode = FeederMode.normal;
+  double nurseryWater = 100;
+  double nurserySatiety = 80;
+  double nextNurseryFeed = 0;
+  int nextLitterId = 1;
+
+  /// Whether newborns go straight to the nursery while it has room.
+  bool autoNursery = true;
+
+  /// When the feeder last dropped food into the main tank. Not saved; the
+  /// tank uses it to show the drop.
+  double lastAutoFeed = -1;
 
   int get day => time ~/ daySeconds + 1;
   int get adultCount => fish.where((item) => item.isAdult(time)).length;
@@ -325,6 +448,19 @@ class Pond {
   int get sheltered => levels[Equipment.javaMoss]! * 7;
   int get snails => levels[Equipment.snails]! * 3;
   int get capacity => 26 + levels[Equipment.storage]! * 20;
+  int get nurseryCapacity => levels[Equipment.nursery]! * nurseryRoomPerLevel;
+  int get cups => levels[Equipment.bettaCups]! * cupsPerLevel;
+  bool get hasNursery => nurseryCapacity > 0;
+  int inZone(Zone zone) => fish.where((item) => item.zone == zone).length;
+  int get nurseryRoom => math.max(0, nurseryCapacity - inZone(Zone.nursery));
+  int get freeCups => math.max(0, cups - inZone(Zone.cups));
+  double waterOf(Zone zone) => zone == Zone.nursery ? nurseryWater : water;
+  double satietyOf(Zone zone) =>
+      zone == Zone.nursery ? nurserySatiety : satiety;
+
+  /// Fish fed from [zone]'s food. Cups share the main tank's.
+  bool _feedsFrom(Fish item, Zone zone) =>
+      (item.zone == Zone.nursery) == (zone == Zone.nursery);
   int get eggCount => clutches.fold(0, (total, clutch) => total + clutch.eggs);
   double get income => _income(time);
 
@@ -356,6 +492,7 @@ class Pond {
               (item) =>
                   item.species == Species.betta &&
                   item.sex == Sex.male &&
+                  item.zone == Zone.main &&
                   item.isAdult(time),
             )
             .length -
@@ -410,28 +547,42 @@ class Pond {
 
   double _income(double at) {
     final neonAdults = fish
-        .where((item) => item.species == Species.neon && item.isAdult(at))
+        .where(
+          (item) =>
+              item.species == Species.neon &&
+              item.zone == Zone.main &&
+              item.isAdult(at),
+        )
         .length;
     var bettaMales = 0;
-    var total = 0.0;
+    var main = 0.0;
+    var nursery = 0.0;
     for (final item in fish) {
       final species = item.species;
-      if (!item.isAdult(at)) {
-        total += species.youngIncome;
-        continue;
+      var value = species.youngIncome;
+      if (item.isAdult(at)) {
+        value = species.adultIncome;
+        if (species == Species.neon) {
+          value *= neonAdults >= Species.neonSchool ? 1.35 : .7;
+        }
+        // Only one male holds the open tank; males in cups earn in peace.
+        if (species == Species.betta &&
+            item.sex == Sex.male &&
+            item.zone == Zone.main &&
+            bettaMales++ > 0) {
+          value = 0;
+        }
       }
-      var value = species.adultIncome;
-      if (species == Species.neon) {
-        value *= neonAdults >= Species.neonSchool ? 1.35 : .7;
+      if (item.zone == Zone.nursery) {
+        nursery += value;
+      } else {
+        main += value;
       }
-      if (species == Species.betta &&
-          item.sex == Sex.male &&
-          bettaMales++ > 0) {
-        value = 0;
-      }
-      total += value;
     }
-    return total * (.30 + .70 * satiety / 100) * (.28 + .72 * water / 100);
+    double health(double food, double clean) =>
+        (.30 + .70 * food / 100) * (.28 + .72 * clean / 100);
+    return main * health(satiety, water) +
+        nursery * health(nurserySatiety, nurseryWater);
   }
 
   double _hatchRate(Species species) => switch (species) {
@@ -466,6 +617,8 @@ class Pond {
     Tail? tail,
     int? vividness,
     bool isComet = false,
+    Zone zone = Zone.main,
+    int? litter,
   }) {
     fish.add(
       Fish(
@@ -478,14 +631,53 @@ class Pond {
         lifeDays: _between(species.lifeDays),
         vividness: vividness ?? 42 + _random(45),
         isComet: isComet,
+        zone: zone,
+        litter: litter,
       ),
     );
   }
 
+  int _recordLitter(
+    Species species,
+    List<int> parents,
+    List<Tail> tails, {
+    required int born,
+    int? eggs,
+    int comets = 0,
+  }) {
+    final id = nextLitterId++;
+    litters.add(
+      Litter(
+        id: id,
+        species: species,
+        bornAt: time,
+        parents: parents,
+        tails: tails,
+        born: born,
+        eggs: eggs,
+        comets: comets,
+      ),
+    );
+    if (litters.length > keptLitters) litters.removeAt(0);
+    return id;
+  }
+
+  Litter? litterById(int? id) =>
+      litters.where((litter) => litter.id == id).firstOrNull;
+
+  int alive(int litterId) =>
+      fish.where((item) => item.litter == litterId).length;
+
   void _bury(Fish item) {
     if (breeders.remove(item.id)) pairSpawns.remove(item.species);
     corpses.add(
-      Corpse(id: item.id, species: item.species, tail: item.tail, diedAt: time),
+      Corpse(
+        id: item.id,
+        species: item.species,
+        tail: item.tail,
+        diedAt: time,
+        zone: item.zone == Zone.nursery ? Zone.nursery : Zone.main,
+      ),
     );
   }
 
@@ -507,20 +699,38 @@ class Pond {
     final before = time;
     var adultLoad = 0.0;
     var youngLoad = 0.0;
+    var nurseryAdultLoad = 0.0;
+    var nurseryYoungLoad = 0.0;
     var predators = 0.0;
     for (final item in fish) {
-      if (item.isAdult(before)) {
-        adultLoad += item.species.load;
-        predators += item.species.predation;
+      final adult = item.isAdult(before);
+      final load = item.species.load;
+      if (item.zone == Zone.nursery) {
+        if (adult) {
+          nurseryAdultLoad += load;
+        } else {
+          nurseryYoungLoad += load;
+        }
+      } else if (adult) {
+        adultLoad += load;
+        if (item.zone == Zone.main) predators += item.species.predation;
       } else {
-        youngLoad += item.species.load;
+        youngLoad += load;
       }
     }
     time += step;
-    if (fish.isNotEmpty) {
+    if (adultLoad + youngLoad > 0) {
       satiety = math.max(
         0,
         satiety - step * (.0029 + adultLoad * .00024 + youngLoad * .00008),
+      );
+    }
+    if (nurseryAdultLoad + nurseryYoungLoad > 0) {
+      nurserySatiety = math.max(
+        0,
+        nurserySatiety -
+            step *
+                (.0029 + nurseryAdultLoad * .00024 + nurseryYoungLoad * .00008),
       );
     }
     final feeder = levels[Equipment.feeder]!;
@@ -530,12 +740,37 @@ class Pond {
         time >= nextFeed) {
       feed();
       stock--;
-      nextFeed = time + math.max(55, 270 - 35 * feeder);
+      lastAutoFeed = time;
+      nextFeed = time + feedInterval(feeder);
+    }
+    if (feeder > 0 &&
+        stock > 0 &&
+        nurseryAdultLoad + nurseryYoungLoad > 0 &&
+        nurserySatiety < feederMode.threshold &&
+        time >= nextNurseryFeed) {
+      feed(Zone.nursery);
+      stock--;
+      nextNurseryFeed = time + feedInterval(feeder);
     }
     final cleanRate = .0037 + levels[Equipment.filter]! * .009;
+    final nurseryCorpses = corpses
+        .where((corpse) => corpse.zone == Zone.nursery)
+        .length;
     final wasteRate =
-        adultLoad * .00031 + youngLoad * .00013 + corpses.length * .0048;
+        adultLoad * .00031 +
+        youngLoad * .00013 +
+        (corpses.length - nurseryCorpses) * .0048;
     water = (water + (cleanRate - wasteRate) * step).clamp(0, 100).toDouble();
+    if (hasNursery) {
+      final nurseryClean = .006 + levels[Equipment.nursery]! * .004;
+      final nurseryWaste =
+          nurseryAdultLoad * .00031 +
+          nurseryYoungLoad * .00013 +
+          nurseryCorpses * .0048;
+      nurseryWater = (nurseryWater + (nurseryClean - nurseryWaste) * step)
+          .clamp(0, 100)
+          .toDouble();
+    }
     coins += _income(before) * step / 60;
 
     if (corpses.isNotEmpty && snails > 0) {
@@ -557,11 +792,19 @@ class Pond {
         report.died++;
         return true;
       }
-      if (!item.isAdult(before) && item.isAdult(time)) report.grown++;
+      if (!item.isAdult(before) && item.isAdult(time)) {
+        report.grown++;
+        // Grown fish leave the nursery for the main tank.
+        if (item.zone == Zone.nursery) {
+          item.zone = Zone.main;
+          report.graduated++;
+        }
+      }
       return false;
     });
 
     _cull(step, report);
+    _house(report);
     _fight(step, report);
     for (final species in Species.values) {
       _spawn(species, report);
@@ -570,16 +813,55 @@ class Pond {
     _hunt(step, predators, report);
   }
 
+  /// Newborns go to the nursery while [autoNursery] is on and it has room.
+  Zone Function() _cradle() {
+    var room = autoNursery ? nurseryRoom : 0;
+    return () => room-- > 0 ? Zone.nursery : Zone.main;
+  }
+
+  /// Rival betta males move into free cups before they can fight.
+  void _house(PondReport report) {
+    var free = freeCups;
+    if (free == 0) return;
+    final males = fish
+        .where(
+          (item) =>
+              item.species == Species.betta &&
+              item.sex == Sex.male &&
+              item.zone == Zone.main &&
+              item.isAdult(time),
+        )
+        .toList();
+    if (males.length < 2) return;
+    final holder = males.firstWhere(
+      (item) => breeders.contains(item.id),
+      orElse: () => males.first,
+    );
+    for (final rival in males) {
+      if (free == 0) break;
+      if (rival == holder) continue;
+      rival.zone = Zone.cups;
+      free--;
+      report.housed++;
+    }
+  }
+
   /// Hatched fry die off at their species' rate, faster when the pond is
   /// hungry or dirty.
   void _cull(double step, PondReport report) {
-    final stress =
-        1 + (1 - satiety / 100) + (water < 50 ? (50 - water) / 50 : 0);
-    final chance = step / daySeconds * stress * 100000;
+    double chance(double food, double clean) =>
+        step /
+        daySeconds *
+        (1 + (1 - food / 100) + (clean < 50 ? (50 - clean) / 50 : 0)) *
+        100000;
+    final main = chance(satiety, water);
+    // The nursery is calmer, so fry there die off more slowly.
+    final nursery = chance(nurserySatiety, nurseryWater) * .6;
     fish.removeWhere((item) {
       final fryLoss = item.species.fryLoss;
       if (fryLoss == 0 || item.age(time) >= fryDays) return false;
-      if (_random(100000) >= fryLoss * chance) return false;
+      final odds = item.zone == Zone.nursery ? nursery : main;
+      if (_random(100000) >= fryLoss * odds) return false;
       report.fryLost++;
       return true;
     });
@@ -591,6 +873,7 @@ class Pond {
           (item) =>
               item.species == Species.betta &&
               item.sex == Sex.male &&
+              item.zone == Zone.main &&
               item.isAdult(time),
         )
         .toList();
@@ -618,14 +901,26 @@ class Pond {
     final ready =
         satiety >= 25 &&
         water >= (species == Species.neon ? 70 : 50) &&
-        parents.every((parent) => parent.isAdult(time));
+        parents.every(
+          (parent) => parent.isAdult(time) && parent.zone == Zone.main,
+        );
     if (!ready) {
       nextLitter[species] = time + daySeconds;
       return;
     }
     final count = _between(species.clutch);
+    final parentIds = [for (final parent in parents) parent.id];
+    final parentTails = [for (final parent in parents) parent.tail];
     if (species.brood == Brood.live) {
       final cometParents = parents.where((parent) => parent.isComet).length;
+      final litter = _recordLitter(
+        species,
+        parentIds,
+        parentTails,
+        born: count,
+      );
+      final cradle = _cradle();
+      var comets = 0;
       for (var i = 0; i < count; i++) {
         final parent = parents[_random(parents.length)];
         final comet = species == Species.guppy && _rollComet(cometParents);
@@ -634,14 +929,19 @@ class Pond {
           tail: _random(100) < 77 ? parent.tail : null,
           vividness: (parent.vividness + _random(31) - 15).clamp(28, 100),
           isComet: comet,
+          zone: cradle(),
+          litter: litter,
         );
-        if (comet) report.cometsBorn++;
+        if (comet) comets++;
       }
+      litterById(litter)?.comets = comets;
+      report.cometsBorn += comets;
       report.born += count;
     } else {
       final spawns = pairSpawns[species] ?? 0;
       pairSpawns[species] = spawns + 1;
       if (species == Species.angelfish && spawns == 0 && _random(2) == 0) {
+        _recordLitter(species, parentIds, parentTails, born: 0, eggs: count);
         report.clutchesLost++;
       } else {
         clutches.add(
@@ -650,8 +950,9 @@ class Pond {
             species: species,
             eggs: count,
             hatchAt: time + species.incubation * daySeconds,
-            tails: [for (final parent in parents) parent.tail],
+            tails: parentTails,
             vividness: [for (final parent in parents) parent.vividness],
+            parents: parentIds,
           ),
         );
         report.laid += count;
@@ -668,6 +969,14 @@ class Pond {
       final hatched = (clutch.eggs * _hatchRate(clutch.species) * variance)
           .round()
           .clamp(0, clutch.eggs);
+      final litter = _recordLitter(
+        clutch.species,
+        clutch.parents,
+        clutch.tails,
+        born: hatched,
+        eggs: clutch.eggs,
+      );
+      final cradle = _cradle();
       for (var i = 0; i < hatched; i++) {
         final parent = _random(2);
         _addFish(
@@ -677,6 +986,8 @@ class Pond {
             28,
             100,
           ),
+          zone: cradle(),
+          litter: litter,
         );
       }
       report.hatched += hatched;
@@ -684,7 +995,9 @@ class Pond {
   }
 
   void _hunt(double step, double predators, PondReport report) {
-    final fry = fish.where((item) => item.age(time) < fryDays).toList();
+    final fry = fish
+        .where((item) => item.zone == Zone.main && item.age(time) < fryDays)
+        .toList();
     final exposed = math.max(0, fry.length - sheltered);
     if (exposed == 0 || predators == 0) {
       predation = 0;
@@ -699,12 +1012,26 @@ class Pond {
     predation -= eaten;
   }
 
-  bool feed() {
-    if (fish.isEmpty) return false;
-    final portion = 24 / (1 + fish.length / 55);
+  /// Drops one portion of food into [zone]. Returns whether some of it was
+  /// left over to foul the water.
+  bool feed([Zone zone = Zone.main]) {
+    final eaters = fish.where((item) => _feedsFrom(item, zone)).toList();
+    if (eaters.isEmpty) return false;
+    final portion = 24 / (1 + eaters.length / 55);
+    if (zone == Zone.nursery) {
+      final excess = math.max(0.0, nurserySatiety + portion - 100);
+      nurserySatiety = math.min(100, nurserySatiety + portion);
+      nurseryWater = math.max(0, nurseryWater - .34 * excess);
+      return excess > 2;
+    }
     final excess = math.max(0.0, satiety + portion - 100);
     // Corydoras pick up leftovers before they rot.
-    final leftovers = math.max(.5, 1 - .04 * adults(Species.corydoras));
+    final scavengers = eaters
+        .where(
+          (item) => item.species == Species.corydoras && item.isAdult(time),
+        )
+        .length;
+    final leftovers = math.max(.5, 1 - .04 * scavengers);
     satiety = math.min(100, satiety + portion);
     water = math.max(0, water - .34 * excess * leftovers);
     return excess > 2;
@@ -713,9 +1040,72 @@ class Pond {
   int upgradeCost(Equipment equipment) =>
       (equipment.price * math.pow(1.6, levels[equipment]!)).round();
 
+  /// Real seconds the feeder rests between drops at [level].
+  static int feedInterval(int level) => math.max(55, 270 - 35 * level);
+
+  /// The feeder cannot rest less than 55 seconds, which it reaches here.
+  static const feederMaxLevel = 7;
+
+  bool isMaxed(Equipment equipment) =>
+      equipment == Equipment.feeder && levels[equipment]! >= feederMaxLevel;
+
   bool canUpgrade(Equipment equipment) =>
+      !isMaxed(equipment) &&
       coins >= upgradeCost(equipment) &&
       (equipment != Equipment.storage || levels[Equipment.feeder]! > 0);
+
+  /// What [equipment] does at [level], in the units the player sees.
+  String effectAt(Equipment equipment, int level) {
+    String duration(int seconds) {
+      final minutes = seconds ~/ 60;
+      final rest = seconds % 60;
+      if (minutes == 0) return '$rest giây';
+      return rest == 0 ? '$minutes phút' : '$minutes phút $rest giây';
+    }
+
+    String perMinute(double value) =>
+        value.toStringAsFixed(2).replaceAll('.', ',');
+
+    return switch (equipment) {
+      Equipment.feeder =>
+        level == 0 ? 'chưa lắp' : 'nghỉ ${duration(feedInterval(level))}',
+      Equipment.storage => '${26 + level * 20} phần mồi',
+      Equipment.filter => '${perMinute(level * .009 * 60)} điểm nước/phút',
+      Equipment.javaMoss => '${level * 7} chỗ trú cá non',
+      Equipment.snails => '${level * 3} ốc',
+      Equipment.nursery =>
+        level == 0 ? 'chưa có' : '${level * nurseryRoomPerLevel} chỗ cá con',
+      Equipment.bettaCups => '${level * cupsPerLevel} ngăn',
+    };
+  }
+
+  /// Why one more level of [equipment] would not change income soon, when
+  /// the pond's state explains it.
+  String? flatReason(Equipment equipment) {
+    final fry = fish
+        .where((item) => item.zone == Zone.main && item.age(time) < fryDays)
+        .length;
+    return switch (equipment) {
+      Equipment.feeder when levels[equipment] == 0 => null,
+      Equipment.feeder when stock == 0 =>
+        'Kho mồi đã hết, nạp thêm để máy rải tiếp',
+      Equipment.feeder when satiety >= feederMode.threshold =>
+        'Cá đang đủ no, máy chưa cần rải nhanh hơn',
+      Equipment.storage => 'Nạp thêm mồi để dùng sức chứa mới',
+      Equipment.filter when water >= 95 => 'Bộ lọc hiện tại đã đủ cho đàn này',
+      Equipment.javaMoss when fry == 0 => 'Chưa có cá con cần chỗ trú',
+      Equipment.javaMoss when fry <= sheltered =>
+        'Rêu đã đủ chỗ cho $fry cá con',
+      Equipment.snails when dead == 0 => 'Chưa có xác cá để dọn',
+      Equipment.nursery when levels[equipment] == 0 =>
+        'Giữ lứa sau an toàn khỏi cá lớn',
+      Equipment.nursery when nurseryRoom > 0 =>
+        'Khu ươm còn $nurseryRoom chỗ trống',
+      Equipment.bettaCups when rivalBettas == 0 =>
+        'Chưa có betta trống thừa cần ngăn riêng',
+      _ => null,
+    };
+  }
 
   bool upgrade(Equipment equipment) {
     if (!canUpgrade(equipment)) return false;
@@ -757,10 +1147,38 @@ class Pond {
     stock = capacity;
   }
 
-  void changeWater() {
-    if (coins < waterChangeCost || water >= 99) return;
+  void changeWater([Zone zone = Zone.main]) {
+    if (coins < waterChangeCost || waterOf(zone) >= 99) return;
     coins -= waterChangeCost;
-    water = math.min(100, water + 30);
+    if (zone == Zone.nursery) {
+      nurseryWater = math.min(100, nurseryWater + 30);
+    } else {
+      water = math.min(100, water + 30);
+    }
+  }
+
+  /// Where [item] may move to, given room in each zone.
+  List<Zone> movesFor(Fish item) => [
+    for (final zone in Zone.values)
+      if (zone != item.zone &&
+          switch (zone) {
+            Zone.main => true,
+            Zone.nursery => nurseryRoom > 0,
+            Zone.cups => item.species == Species.betta && freeCups > 0,
+          })
+        zone,
+  ];
+
+  /// Moves fish [id] into [zone]. A breeder that leaves the main tank stops
+  /// breeding.
+  bool moveFish(int id, Zone zone) {
+    final item = fish.where((value) => value.id == id).firstOrNull;
+    if (item == null || !movesFor(item).contains(zone)) return false;
+    item.zone = zone;
+    if (zone != Zone.main && breeders.remove(id)) {
+      pairSpawns.remove(item.species);
+    }
+    return true;
   }
 
   bool scoop(int id) {
@@ -809,6 +1227,48 @@ class Pond {
     return true;
   }
 
+  /// What [item] sells for now: full price grown, less while growing, and
+  /// nothing while it is still a fry.
+  int priceOf(Fish item) {
+    if (item.isAdult(time)) return item.price;
+    if (item.age(time) < fryDays) return 0;
+    return (item.price * (.3 + .5 * item.growth(time))).round();
+  }
+
+  /// Fish from [litter] that can be sold now: past the fry stage and not
+  /// kept for breeding. A null [litter] means fish of unknown lineage.
+  List<Fish> sellableIn(int? litter) => fish
+      .where(
+        (item) =>
+            item.litter == litter &&
+            !breeders.contains(item.id) &&
+            item.age(time) >= fryDays,
+      )
+      .toList();
+
+  /// Litters with fish for sale, newest first; unknown lineage last.
+  List<int?> get litterLots {
+    final ids = <int?>{};
+    for (final item in fish) {
+      if (breeders.contains(item.id) || item.age(time) < fryDays) continue;
+      ids.add(item.litter);
+    }
+    return ids.toList()..sort((a, b) {
+      if (a == null) return 1;
+      if (b == null) return -1;
+      return b.compareTo(a);
+    });
+  }
+
+  (int, int) sellLitter(int? litter) {
+    final sale = sellableIn(litter);
+    final total = sale.fold(0, (sum, item) => sum + priceOf(item));
+    final sold = sale.map((item) => item.id).toSet();
+    fish.removeWhere((item) => sold.contains(item.id));
+    coins += total;
+    return (sale.length, total);
+  }
+
   (int, int) sell({required bool keepCandidate}) {
     final sale = forSale;
     if (keepCandidate) {
@@ -851,6 +1311,12 @@ class Pond {
     'raritySeed': raritySeed,
     'preference': preference.name,
     'feederMode': feederMode.name,
+    'nurseryWater': nurseryWater,
+    'nurserySatiety': nurserySatiety,
+    'nextNurseryFeed': nextNurseryFeed,
+    'autoNursery': autoNursery,
+    'nextLitterId': nextLitterId,
+    'litters': litters.map((item) => item.toJson()).toList(),
     'levels': {for (final entry in levels.entries) entry.key.name: entry.value},
     'breeders': breeders.toList(),
     'fish': fish.map((item) => item.toJson()).toList(),

@@ -25,8 +25,31 @@ Color fishColor(Species species, Tail tail) => switch (species) {
 };
 
 /// Where a corpse rests, as fractions of the tank size.
-Offset corpseSpot(Corpse corpse) =>
-    Offset(corpse.x, .8 + (corpse.id * .2914 % 1) * .04);
+///
+/// [lift] raises the floor (negative values) when controls cover its foot.
+Offset corpseSpot(Corpse corpse, [double lift = 0]) =>
+    Offset(corpse.x, .8 + lift + (corpse.id * .2914 % 1) * .04);
+
+/// Where the feeder and filter hang on the glass, across the tank's width.
+const _feederX = .11;
+const _filterX = .89;
+
+/// Cup [index] of [count] in the betta cup view, as fractions of the tank.
+Rect cupRect(int index, int count, {double top = .25, double bottom = .86}) {
+  final columns = count <= 4 ? 2 : 3;
+  final rows = (count / columns).ceil();
+  final area = Rect.fromLTRB(.06, top, .94, bottom);
+  final width = area.width / columns;
+  final height = area.height / math.max(rows, 2);
+  final column = index % columns;
+  final row = index ~/ columns;
+  return Rect.fromLTWH(
+    area.left + column * width + width * .08,
+    area.top + row * height + height * .08,
+    width * .84,
+    height * .84,
+  );
+}
 
 class Aquarium extends StatefulWidget {
   const Aquarium({
@@ -37,9 +60,19 @@ class Aquarium extends StatefulWidget {
     this.onSelect,
     this.selectedId,
     this.onZoom,
+    this.zone = Zone.main,
+    this.overlay = EdgeInsets.zero,
   });
 
   final Pond pond;
+
+  /// Space the screen's controls cover at the top and bottom. The water
+  /// surface sits below the top controls and the floor rises above the
+  /// bottom ones.
+  final EdgeInsets overlay;
+
+  /// Which part of the pond to show.
+  final Zone zone;
   final VoidCallback onFeed;
   final ValueChanged<Corpse>? onScoop;
 
@@ -72,7 +105,7 @@ class AquariumState extends State<Aquarium>
   @override
   void initState() {
     super.initState();
-    _motion = _TankMotion(widget.pond)
+    _motion = _TankMotion(widget.pond, widget.zone)
       ..selected = widget.selectedId
       ..onZoom = widget.onZoom;
     _ticker = createTicker(_motion.tick)..start();
@@ -88,6 +121,10 @@ class AquariumState extends State<Aquarium>
   void didUpdateWidget(Aquarium oldWidget) {
     super.didUpdateWidget(oldWidget);
     _motion.onZoom = widget.onZoom;
+    if (widget.zone != oldWidget.zone) {
+      _motion.showZone(widget.zone);
+      resetView();
+    }
     if (widget.selectedId != oldWidget.selectedId) {
       _motion.selected = widget.selectedId;
       _motion.follow = widget.selectedId != null;
@@ -119,6 +156,13 @@ class AquariumState extends State<Aquarium>
     return _motion.toScreen(Offset(pose.x, pose.y), size);
   }
 
+  /// Where each snail is drawn, as fractions of the tank size.
+  @visibleForTesting
+  List<Offset> get snailSpots => [
+    for (final (index, x) in _motion.snails.indexed)
+      Offset(x, _motion.snailLane(index)),
+  ];
+
   Fish? _fishAt(Offset point, Size size) {
     final scale = _motion.spriteScale(size) * _motion.zoom;
     Fish? best;
@@ -141,8 +185,8 @@ class AquariumState extends State<Aquarium>
   void _tap(Offset point, Size size) {
     final onScoop = widget.onScoop;
     if (onScoop != null) {
-      for (final corpse in widget.pond.corpses.reversed) {
-        final spot = _motion.toScreen(corpseSpot(corpse), size);
+      for (final corpse in _motion.corpses.toList().reversed) {
+        final spot = _motion.toScreen(corpseSpot(corpse, _motion.lift), size);
         if ((spot - point).distance < 30) {
           onScoop(corpse);
           return;
@@ -200,6 +244,13 @@ class AquariumState extends State<Aquarium>
     return LayoutBuilder(
       builder: (context, constraints) {
         final size = constraints.biggest;
+        _motion
+          ..surface = (widget.overlay.top / size.height + .03).clamp(.18, .4)
+          ..lift = (.03 - widget.overlay.bottom / size.height + 1 - .93).clamp(
+            -.15,
+            0.0,
+          )
+          ..laneGap = math.max(.02, 13 / size.height);
         return Semantics(
           button: true,
           label: 'Rải thức ăn vào hồ',
@@ -275,9 +326,27 @@ class _CometTrailSample {
 }
 
 class _TankMotion extends ChangeNotifier {
-  _TankMotion(this.pond);
+  _TankMotion(this.pond, this.zone);
 
   final Pond pond;
+  Zone zone;
+
+  /// Cup index of each betta shown in the cup view.
+  final Map<int, int> cupSlots = {};
+  double _seenAutoFeed = -1;
+
+  Iterable<Corpse> get corpses => pond.corpses.where(
+    (corpse) => (corpse.zone == Zone.nursery) == (zone == Zone.nursery),
+  );
+
+  void showZone(Zone value) {
+    zone = value;
+    poses.clear();
+    target = null;
+    _nextSync = 0;
+    notifyListeners();
+  }
+
   final Map<int, _Pose> poses = {};
   final List<double> snails = [];
   Duration _last = Duration.zero;
@@ -291,6 +360,14 @@ class _TankMotion extends ChangeNotifier {
   /// centre of the screen.
   double zoom = 1;
   Offset center = const Offset(.5, .5);
+
+  /// The water surface, and how far the floor is raised (negative), as
+  /// fractions of the tank height. Fish positions are laid out for a surface
+  /// at .18 and a floor at .93, then fitted between these.
+  double surface = .18;
+  double lift = 0;
+
+  double fitY(double y) => surface + (y - .18) * (.93 + lift - surface) / .75;
   double? targetZoom;
   int? selected;
   bool follow = false;
@@ -334,7 +411,8 @@ class _TankMotion extends ChangeNotifier {
   void drop(Offset point) {
     target = Offset(
       point.dx.clamp(.08, .92).toDouble(),
-      point.dy.clamp(.13, .87).toDouble(),
+      // Food lands below the surface, so fish never chase it into the air.
+      point.dy.clamp(surface + .1, .87 + lift).toDouble(),
     );
     droppedAt = time;
     notifyListeners();
@@ -349,6 +427,13 @@ class _TankMotion extends ChangeNotifier {
       _nextSync = time + .65;
     }
 
+    // Show the feeder's own drops in the main tank.
+    if (pond.lastAutoFeed != _seenAutoFeed) {
+      if (_seenAutoFeed >= 0 && zone == Zone.main) {
+        drop(Offset(_feederX + .02, surface + .22));
+      }
+      _seenAutoFeed = pond.lastAutoFeed;
+    }
     final activeTarget = time - droppedAt < 2.9 ? target : null;
     final movingTime = time * (reduced ? .32 : 1);
     for (final pose in poses.values) {
@@ -360,15 +445,20 @@ class _TankMotion extends ChangeNotifier {
           ? natural
           : bottom
           ? Offset(activeTarget.dx + math.sin(phase) * .06, natural.dy)
-          : activeTarget +
-                Offset(math.sin(phase) * .084, math.cos(phase) * .16);
+          : Offset(
+              activeTarget.dx + math.sin(phase) * .084,
+              (activeTarget.dy + math.cos(phase) * .16).clamp(
+                surface + .06,
+                .9 + lift,
+              ),
+            );
       final dx = destination.dx - pose.x;
       final dy = destination.dy - pose.y;
       final attraction = activeTarget == null ? 1.85 : 2.4;
       pose.x += dx * delta * attraction;
       pose.y += dy * delta * attraction;
       final direction = activeTarget == null
-          ? ((ahead.dx - natural.dx) * 60).clamp(-1, 1)
+          ? _heading(ahead.dx - natural.dx)
           : (dx * 10).clamp(-1, 1);
       pose.yaw += (direction - pose.yaw) * delta * 7;
       final pitch = (dy * 1.8).clamp(-.23, .23) * pose.yaw.sign;
@@ -385,15 +475,25 @@ class _TankMotion extends ChangeNotifier {
       }
     }
 
-    // Snails crawl along the floor towards the nearest corpse.
-    final corpses = pond.corpses;
+    // Snails crawl along the floor towards a corpse, fanning out around it
+    // rather than piling onto one spot.
+    final corpses = this.corpses.toList();
     for (var i = 0; i < snails.length; i++) {
-      final goal = corpses.isEmpty
-          ? .5 + math.sin(movingTime * .05 + i * 2.1) * .42
-          : corpses[i % corpses.length].x + (i.isEven ? -.025 : .025);
-      final step = (goal - snails[i]).clamp(-.012 * delta, .012 * delta);
+      double goal;
+      if (corpses.isEmpty) {
+        goal = .5 + math.sin(movingTime * .05 + i * 2.1) * .42;
+      } else {
+        final rank = i ~/ corpses.length;
+        final side = rank.isEven ? 1 : -1;
+        goal = corpses[i % corpses.length].x + side * (rank + 1) ~/ 2 * .04;
+      }
+      final step = (goal.clamp(.04, .96) - snails[i]).clamp(
+        -.012 * delta,
+        .012 * delta,
+      );
       snails[i] += step;
     }
+    _spreadSnails();
 
     // Glide the camera towards the followed fish and any requested zoom.
     final ease = math.min(1.0, delta * 4);
@@ -415,10 +515,71 @@ class _TankMotion extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Which way a fish faces, from how far it moves across .15 s. Slow
+  /// swimmers such as angelfish still face fully sideways; only a fish that
+  /// has nearly stopped to turn is drawn edge-on.
+  static double _heading(double step) => (step * 600).clamp(-1.0, 1.0);
+
+  static const snailLanes = 3;
+  static const _snailGap = .045;
+
+  /// The floor row snail [index] crawls along, as a fraction of the height.
+  /// Gap between snail rows: 2% of the height, but never less than a shell.
+  double laneGap = .02;
+
+  double snailLane(int index) =>
+      .885 + lift - (snailLanes - 1 - index % snailLanes) * laneGap;
+
+  /// Keeps snails sharing a row at least [_snailGap] apart.
+  void _spreadSnails() {
+    for (var lane = 0; lane < snailLanes; lane++) {
+      final order = [for (var i = lane; i < snails.length; i += snailLanes) i]
+        ..sort((a, b) => snails[a].compareTo(snails[b]));
+      for (var k = 1; k < order.length; k++) {
+        final left = order[k - 1];
+        final right = order[k];
+        final overlap = _snailGap - (snails[right] - snails[left]);
+        if (overlap <= 0) continue;
+        snails[left] -= overlap / 2;
+        snails[right] += overlap / 2;
+      }
+      for (final i in order) {
+        snails[i] = snails[i].clamp(.03, .97);
+      }
+    }
+  }
+
   Offset _position(_Pose pose, double movingTime) {
+    final point = _layout(pose, movingTime);
+    if (cupSlots.containsKey(pose.fish.id)) return point;
+    return Offset(point.dx, fitY(point.dy));
+  }
+
+  Offset _layout(_Pose pose, double movingTime) {
     final fish = pose.fish;
     final phase = pose.phase;
     final depth = fish.id * .41421356 % 1;
+    if (cupSlots[fish.id] case final slot?) {
+      final cup = cupRect(
+        slot,
+        math.max(pond.cups, cupSlots.length),
+        top: surface + .07,
+        bottom: .86 + lift,
+      );
+      final cycle = movingTime * .3 + phase;
+      return cup.center +
+          Offset(
+            math.sin(cycle) * cup.width * .22,
+            math.cos(cycle * 1.3) * cup.height * .15,
+          );
+    }
+    if (zone == Zone.nursery) {
+      final cycle = movingTime * .4 + phase;
+      return Offset(
+        .5 + math.sin(cycle) * (.3 + (fish.id % 4) * .03),
+        .3 + depth * .5 + math.cos(cycle * 1.1) * .03,
+      );
+    }
     if (fish.age(pond.time) < Pond.fryDays && pond.sheltered > 0) {
       final cycle = movingTime * .44 + phase;
       return Offset(
@@ -467,7 +628,14 @@ class _TankMotion extends ChangeNotifier {
   void _syncFish() {
     final ids = <int>{};
     final movingTime = time * (reduced ? .32 : 1);
-    for (final fish in pond.fish) {
+    final shown = pond.fish.where((fish) => fish.zone == zone).toList();
+    cupSlots.clear();
+    if (zone == Zone.cups) {
+      for (final (index, fish) in shown.indexed) {
+        cupSlots[fish.id] = index;
+      }
+    }
+    for (final fish in shown) {
       ids.add(fish.id);
       poses.putIfAbsent(fish.id, () {
         final phase = fish.id * 2.39996;
@@ -477,14 +645,15 @@ class _TankMotion extends ChangeNotifier {
         return pose
           ..x = point.dx
           ..y = point.dy
-          ..yaw = ((ahead.dx - point.dx) * 60).clamp(-1, 1).toDouble();
+          ..yaw = _heading(ahead.dx - point.dx);
       });
     }
     poses.removeWhere((id, pose) => !ids.contains(id));
-    while (snails.length < pond.snails) {
+    final snailCount = zone == Zone.main ? pond.snails : 0;
+    if (snails.length > snailCount) snails.length = snailCount;
+    while (snails.length < snailCount) {
       snails.add(.1 + snails.length * .618 % .8);
     }
-    if (snails.length > pond.snails) snails.length = pond.snails;
   }
 }
 
@@ -545,7 +714,7 @@ class _AquariumPainter extends CustomPainter {
       final ripple = Path();
       for (double x = 0; x < size.width + 8; x += 8) {
         final y =
-            size.height * (.18 + row * .015) +
+            size.height * (motion.surface + row * .015) +
             math.sin(x * .023 + time * .7 + row * 1.4) * 1.9;
         if (x == 0) {
           ripple.moveTo(x, y);
@@ -561,15 +730,15 @@ class _AquariumPainter extends CustomPainter {
 
     final floor = Rect.fromLTWH(
       0,
-      size.height * .72,
+      size.height * (.72 + motion.lift),
       size.width,
-      size.height * .28,
+      size.height * (.28 - motion.lift),
     );
     canvas.drawRect(floor, paint..shader = _ground.createShader(floor));
     paint.shader = null;
     for (var i = 0; i < 52; i++) {
       final x = size.width * (i * .6137 % 1);
-      final y = size.height * (.837 + (i * .79187 % 1) * .143);
+      final y = size.height * (.837 + motion.lift + (i * .79187 % 1) * .143);
       paint.color = i % 5 == 0
           ? const Color(0x665fb99a)
           : const Color(0x3066a790);
@@ -588,7 +757,8 @@ class _AquariumPainter extends CustomPainter {
       final x =
           size.width * (.08 + i * .297 % .85) +
           math.sin(opacityPhase * 9 + i) * 4;
-      final y = size.height * (.88 - opacityPhase * .69);
+      final floor = .88 + motion.lift;
+      final y = size.height * (floor - opacityPhase * (floor - motion.surface));
       line
         ..color = const Color(0xffa6eff0)
             .withValues(alpha: math.sin(opacityPhase * math.pi) * .27)
@@ -596,8 +766,18 @@ class _AquariumPainter extends CustomPainter {
       canvas.drawCircle(Offset(x, y), 1 + i % 4 * .77, line);
     }
 
-    _drawPlants(canvas, size, line, time);
-    _drawClutches(canvas, size, paint, line, time);
+    switch (motion.zone) {
+      case Zone.main:
+        _drawPlants(canvas, size, line, time);
+        _drawMoss(canvas, size, line, motion.pond.levels[Equipment.javaMoss]!);
+        _drawFeeder(canvas, size, paint, line);
+        _drawFilter(canvas, size, line, time);
+        _drawClutches(canvas, size, paint, line, time);
+      case Zone.nursery:
+        _drawMoss(canvas, size, line, 5);
+      case Zone.cups:
+        _drawCups(canvas, size, paint, line);
+    }
     _drawCorpses(canvas, size, line, time);
     _drawSnails(canvas, size, line);
     final spriteScale = motion.spriteScale(size);
@@ -711,11 +891,166 @@ class _AquariumPainter extends CustomPainter {
     }
   }
 
+  /// Java moss tufts on the sand; more levels, more tufts.
+  void _drawMoss(Canvas canvas, Size size, Paint paint, int level) {
+    final tufts = math.min(18, level * 3);
+    paint.strokeWidth = 1.2;
+    for (var i = 0; i < tufts; i++) {
+      final side = i.isEven ? .2 : .8;
+      final base = Offset(
+        size.width * (side + (i * .137 % .16) - .08),
+        size.height * (.86 + motion.lift + (i * .071 % .05)),
+      );
+      paint.color = i % 3 == 0
+          ? const Color(0xff4fae7f)
+          : const Color(0xff3a8f68);
+      final tuft = Path();
+      for (var j = 0; j < 6; j++) {
+        final angle = -math.pi / 2 + (j - 2.5) * .32;
+        final length = 7.0 + (i + j) % 3 * 2;
+        final tip = base + Offset(math.cos(angle), math.sin(angle)) * length;
+        tuft
+          ..moveTo(base.dx, base.dy)
+          ..lineTo(tip.dx, tip.dy);
+      }
+      canvas.drawPath(tuft, paint);
+    }
+  }
+
+  /// The feeder clips to the glass above the water once it is bought.
+  /// A hopper clipped over the rim. Its amber fill shows the food left in
+  /// storage.
+  void _drawFeeder(Canvas canvas, Size size, Paint fill, Paint line) {
+    final pond = motion.pond;
+    if (pond.levels[Equipment.feeder] == 0) return;
+    final at = Offset(
+      _feederX * size.width,
+      (motion.surface + .02) * size.height,
+    );
+    final hopper = Path()
+      ..moveTo(at.dx - 15, at.dy - 22)
+      ..lineTo(at.dx + 15, at.dy - 22)
+      ..lineTo(at.dx + 6, at.dy)
+      ..lineTo(at.dx - 6, at.dy)
+      ..close();
+    fill.color = const Color(0xcc0d2a3c);
+    canvas.drawPath(hopper, fill);
+    final stored = (pond.stock / pond.capacity).clamp(0.0, 1.0);
+    if (stored > 0) {
+      canvas.save();
+      canvas.clipPath(hopper);
+      fill.color = const Color(0xccffb85c);
+      canvas.drawRect(
+        Rect.fromLTRB(at.dx - 15, at.dy - 22 * stored, at.dx + 15, at.dy),
+        fill,
+      );
+      canvas.restore();
+    }
+    line
+      ..color = const Color(0xffd8e4e8)
+      ..strokeWidth = 1.4;
+    canvas.drawPath(hopper, line);
+    // Clip over the rim and a short chute into the water.
+    canvas.drawPath(
+      Path()
+        ..moveTo(at.dx + 15, at.dy - 18)
+        ..lineTo(at.dx + 21, at.dy - 18)
+        ..lineTo(at.dx + 21, at.dy - 6)
+        ..moveTo(at.dx, at.dy)
+        ..lineTo(at.dx, at.dy + 9),
+      line,
+    );
+  }
+
+  /// A hang-on canister: an intake pipe reaches down into the tank and the
+  /// spout pushes a stream of bubbles that grows with the filter's level.
+  void _drawFilter(Canvas canvas, Size size, Paint line, double time) {
+    final level = motion.pond.levels[Equipment.filter]!;
+    if (level == 0) return;
+    final at = Offset(
+      _filterX * size.width,
+      (motion.surface + .02) * size.height,
+    );
+    line
+      ..color = const Color(0xffd8e4e8)
+      ..strokeWidth = 1.4;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTRB(at.dx - 6, at.dy - 26, at.dx + 14, at.dy + 4),
+        const Radius.circular(3),
+      ),
+      line,
+    );
+    final intakeBottom = size.height * (motion.surface + .32);
+    final spout = Offset(at.dx - 16, at.dy + 6);
+    canvas.drawPath(
+      Path()
+        // Intake pipe with a slotted strainer at its foot.
+        ..moveTo(at.dx + 4, at.dy + 4)
+        ..lineTo(at.dx + 4, intakeBottom)
+        ..moveTo(at.dx + 1, intakeBottom - 12)
+        ..lineTo(at.dx + 1, intakeBottom)
+        ..moveTo(at.dx + 7, intakeBottom - 12)
+        ..lineTo(at.dx + 7, intakeBottom)
+        // Spout lip over the water.
+        ..moveTo(at.dx - 6, at.dy - 4)
+        ..lineTo(spout.dx, spout.dy - 4)
+        ..lineTo(spout.dx, spout.dy),
+      line,
+    );
+    final bubbles = math.min(24, 3 + level * 3);
+    final reach = size.width * (.12 + level * .035).clamp(0, .45);
+    for (var i = 0; i < bubbles; i++) {
+      final progress = (time * (.35 + level * .05) + i / bubbles) % 1;
+      final point =
+          spout +
+          Offset(
+            -progress * reach,
+            progress * 26 + math.sin(progress * 9 + i) * 4,
+          );
+      line
+        ..color = const Color(0xffcff4ff).withValues(alpha: (1 - progress) * .6)
+        ..strokeWidth = .8;
+      canvas.drawCircle(point, 1 + i % 3 * .6, line);
+    }
+  }
+
+  void _drawCups(Canvas canvas, Size size, Paint fill, Paint line) {
+    final count = math.max(motion.pond.cups, motion.cupSlots.length);
+    for (var i = 0; i < count; i++) {
+      final cup = cupRect(
+        i,
+        count,
+        top: motion.surface + .07,
+        bottom: .86 + motion.lift,
+      );
+      final rect = Rect.fromLTRB(
+        cup.left * size.width,
+        cup.top * size.height,
+        cup.right * size.width,
+        cup.bottom * size.height,
+      );
+      final glass = RRect.fromRectAndCorners(
+        rect,
+        bottomLeft: const Radius.circular(14),
+        bottomRight: const Radius.circular(14),
+        topLeft: const Radius.circular(4),
+        topRight: const Radius.circular(4),
+      );
+      fill.color = const Color(0x2296d8ff);
+      canvas.drawRRect(glass, fill);
+      line
+        ..color = const Color(0x88cdeeff)
+        ..strokeWidth = 1.3;
+      canvas.drawRRect(glass, line);
+    }
+  }
+
   void _drawPlants(Canvas canvas, Size size, Paint paint, double time) {
     final count = math.min(8, 2 + motion.pond.levels[Equipment.javaMoss]! * 2);
     for (var i = 0; i < count * 2; i++) {
       final x = size.width * ((i.isEven ? .14 : .86) + (i % 3 - 1) * .039);
-      final y = size.height * .93;
+      final y = size.height * (.93 + motion.lift);
       final height = size.height * (.11 + (i * .052 % .16));
       final sway = math.sin(time * .92 + i * 1.7) * height * .12;
       final stem = Path()
@@ -765,22 +1100,22 @@ class _AquariumPainter extends CustomPainter {
       final dots = math.min(24, 4 + clutch.eggs ~/ 20);
       final (anchor, spread, color) = switch (clutch.species) {
         Species.betta => (
-          Offset(.3 + seed * .4, .195),
+          Offset(.3 + seed * .4, motion.surface + .015),
           const Offset(.05, .008),
           const Color(0xccf3f7ff),
         ),
         Species.corydoras => (
-          Offset(clutch.id.isEven ? .15 : .85, .76 + seed * .05),
+          Offset(clutch.id.isEven ? .15 : .85, .76 + motion.lift + seed * .05),
           const Offset(.025, .03),
           const Color(0xddf1e3c0),
         ),
         Species.angelfish => (
-          Offset(.25 + seed * .5, .84),
+          Offset(.25 + seed * .5, .84 + motion.lift),
           const Offset(.03, .012),
           const Color(0xddffd59a),
         ),
         _ => (
-          Offset(.15 + seed * .7, .86),
+          Offset(.15 + seed * .7, .86 + motion.lift),
           const Offset(.12, .02),
           const Color(0x99d9f6ff),
         ),
@@ -809,8 +1144,8 @@ class _AquariumPainter extends CustomPainter {
 
   void _drawCorpses(Canvas canvas, Size size, Paint paint, double time) {
     final scale = (size.shortestSide / 420).clamp(.77, 1.24);
-    for (final corpse in motion.pond.corpses) {
-      final spot = corpseSpot(corpse);
+    for (final corpse in motion.corpses) {
+      final spot = corpseSpot(corpse, motion.lift);
       final center = Offset(spot.dx * size.width, spot.dy * size.height);
       final length = 18 * scale * (.4 + corpse.remains * .6);
       final faded = fishColor(
@@ -848,7 +1183,7 @@ class _AquariumPainter extends CustomPainter {
     for (var i = 0; i < motion.snails.length; i++) {
       final base = Offset(
         motion.snails[i] * size.width,
-        size.height * (.855 + i % 3 * .012),
+        size.height * motion.snailLane(i),
       );
       paint
         ..color = const Color(0xffd0664a)
@@ -1019,31 +1354,31 @@ class _AquariumPainter extends CustomPainter {
         );
         eye(const Offset(7, -2), 1.9);
       case Species.angelfish:
-        // ›◇•› tall diamond body with trailing fins.
-        glow(chevron(-12 + flap, 5), _silver, 2.4);
+        // ›◇•› diamond body with tall trailing fins.
+        glow(chevron(-15 + flap, 5), _silver, 2.4);
         final body = Path()
-          ..moveTo(-10, 0)
-          ..lineTo(2, -17)
-          ..lineTo(14, 0)
-          ..lineTo(2, 17)
+          ..moveTo(-14, 0)
+          ..lineTo(1, -16)
+          ..lineTo(16, 0)
+          ..lineTo(1, 16)
           ..close();
         glow(body, _silver, 2.6);
         glow(
           Path()
-            ..moveTo(2, -17)
-            ..lineTo(-5, -27 + flap)
-            ..moveTo(2, 17)
-            ..lineTo(-5, 27 + flap),
+            ..moveTo(1, -16)
+            ..lineTo(-7, -26 + flap)
+            ..moveTo(1, 16)
+            ..lineTo(-7, 26 + flap),
           _silver,
           1.8,
         );
         paint
           ..color = const Color(0xff6f8a94)
           ..strokeWidth = 2;
-        canvas.drawLine(const Offset(-2, -11), const Offset(-2, 11), paint);
-        canvas.drawLine(const Offset(6, -9), const Offset(6, 9), paint);
-        glow(chevron(18, 3.5), _silver, 2.2);
-        eye(const Offset(9, -2));
+        canvas.drawLine(const Offset(-5, -9), const Offset(-5, 9), paint);
+        canvas.drawLine(const Offset(5, -10), const Offset(5, 10), paint);
+        glow(chevron(21, 3.5), _silver, 2.2);
+        eye(const Offset(11, -2));
     }
     canvas.restore();
   }

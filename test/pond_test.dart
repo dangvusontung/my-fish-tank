@@ -239,6 +239,95 @@ void main() {
       );
     }
   });
+
+  test('upgrade cards show real effects and the feeder tops out', () {
+    final pond = Pond.starter()..coins = 100000;
+
+    expect(pond.effectAt(Equipment.feeder, 1), 'nghỉ 3 phút 55 giây');
+    expect(pond.effectAt(Equipment.feeder, 2), 'nghỉ 3 phút 20 giây');
+    expect(pond.effectAt(Equipment.storage, 1), '46 phần mồi');
+    expect(pond.effectAt(Equipment.filter, 1), '0,54 điểm nước/phút');
+    expect(pond.effectAt(Equipment.filter, 2), '1,08 điểm nước/phút');
+    expect(pond.effectAt(Equipment.javaMoss, 2), '14 chỗ trú cá non');
+
+    for (var level = 0; level < Pond.feederMaxLevel; level++) {
+      expect(pond.upgrade(Equipment.feeder), isTrue);
+    }
+    expect(Pond.feedInterval(Pond.feederMaxLevel), 55);
+    expect(pond.isMaxed(Equipment.feeder), isTrue);
+    expect(pond.upgrade(Equipment.feeder), isFalse);
+    expect(pond.flatReason(Equipment.storage), contains('Nạp thêm mồi'));
+  });
+
+  test('the nursery shelters newborns until they grow up', () {
+    final open = Pond.starter();
+    final nursery = Pond.starter()..levels[Equipment.nursery] = 1;
+
+    final exposed = open.advance(const Duration(seconds: 12 * Pond.daySeconds));
+    final sheltered = nursery.advance(
+      const Duration(seconds: 12 * Pond.daySeconds),
+    );
+
+    expect(exposed.eaten, greaterThan(0));
+    expect(sheltered.eaten, 0);
+    expect(nursery.inZone(Zone.nursery), sheltered.born);
+
+    final later = nursery.advance(const Duration(hours: 3));
+    expect(later.graduated, greaterThan(0));
+    expect(nursery.inZone(Zone.nursery), lessThan(sheltered.born));
+  });
+
+  test('rival betta males move into cups instead of fighting', () {
+    final pond = Pond.starter()
+      ..coins = 1000
+      ..levels[Equipment.bettaCups] = 1;
+    pond.buyPair(Species.betta);
+    pond.buyPair(Species.betta);
+
+    final report = pond.advance(const Duration(hours: 2));
+
+    expect(report.housed, 1);
+    expect(report.fought, 0);
+    expect(pond.inZone(Zone.cups), 1);
+    expect(pond.rivalBettas, 0);
+  });
+
+  test('litters are recorded and sold as a lot by growth stage', () {
+    final pond = Pond.starter();
+    final report = pond.advance(const Duration(seconds: 5 * Pond.daySeconds));
+    final litter = pond.litters.single;
+
+    expect(litter.born, report.born);
+    expect(pond.alive(litter.id), greaterThan(0));
+    expect(pond.sellableIn(litter.id), isEmpty, reason: 'still fry');
+
+    pond.advance(const Duration(seconds: 25 * Pond.daySeconds));
+    final lot = pond.sellableIn(litter.id);
+    expect(lot, isNotEmpty);
+    final young = lot.firstWhere((fish) => !fish.isAdult(pond.time));
+    expect(pond.priceOf(young), inExclusiveRange(0, young.price));
+
+    final restored = Pond.fromJson(jsonDecode(jsonEncode(pond.toJson())));
+    expect(restored.toJson(), pond.toJson());
+
+    final coins = pond.coins;
+    final (count, earned) = pond.sellLitter(litter.id);
+    expect(count, lot.length);
+    expect(pond.coins, coins + earned);
+    expect(pond.sellableIn(litter.id), isEmpty);
+    expect(pond.litterLots, isNot(contains(litter.id)));
+  });
+
+  test('a breeder moved out of the main tank stops breeding', () {
+    final pond = Pond.starter()..levels[Equipment.nursery] = 1;
+    final male = pond.pairOf(Species.guppy).first;
+
+    expect(pond.movesFor(male), contains(Zone.nursery));
+    expect(pond.movesFor(male), isNot(contains(Zone.cups)));
+    expect(pond.moveFish(male.id, Zone.nursery), isTrue);
+    expect(pond.breeders, isNot(contains(male.id)));
+    expect(pond.inZone(Zone.nursery), 1);
+  });
 }
 
 Pond _withCorpses(Pond pond, int count) {

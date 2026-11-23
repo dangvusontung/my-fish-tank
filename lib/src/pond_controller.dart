@@ -49,7 +49,7 @@ class PondController extends ChangeNotifier {
     final gap = DateTime.now().difference(_applied);
     final changes = _advance();
     if (gap >= const Duration(minutes: 1) && changes.hasEvents) {
-      reportTitle = 'Hồ khi mày đi vắng';
+      reportTitle = 'Hồ khi bạn đi vắng';
       report = changes;
     }
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
