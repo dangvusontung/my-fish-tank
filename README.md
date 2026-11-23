@@ -17,7 +17,7 @@ flutter pub get
 flutter run
 ```
 
-Trong game, **Tua 30 ngày** cho phép thử vòng sinh sản và lên lứa ngay. Đây là thời gian mô phỏng. Bình thường, 5 phút ngoài đời tương ứng một ngày trong hồ.
+Trong game, **Tua 30 ngày** cho phép thử vòng sinh sản và lên lứa ngay. Đây là thời gian mô phỏng. Bình thường, 2 phút ngoài đời tương ứng một ngày trong hồ.
 
 ## Kiểm tra và đóng gói
 

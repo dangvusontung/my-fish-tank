@@ -86,13 +86,23 @@ class AquariumState extends State<Aquarium>
                     alignment: Alignment.topCenter,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const _BubbleLabel('Hồ bảy màu', Color(0xffd9f5ea)),
-                        _BubbleLabel(
-                          'Nước $water%',
-                          goodWater
-                              ? const Color(0xffa0f8d4)
-                              : const Color(0xffffbc81),
+                        Flexible(
+                          flex: 2,
+                          child: _BubbleLabel(
+                            'Hồ bảy màu · ${widget.pond.fish.length} cá',
+                            const Color(0xffd9f5ea),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: _BubbleLabel(
+                            'Nước $water%',
+                            goodWater
+                                ? const Color(0xffa0f8d4)
+                                : const Color(0xffffbc81),
+                          ),
                         ),
                       ],
                     ),
@@ -163,7 +173,7 @@ class _TankMotion extends ChangeNotifier {
   final Map<int, _Pose> poses = {};
   Duration _last = Duration.zero;
   double time = 0;
-  double _nextSelection = 0;
+  double _nextSync = 0;
   bool reduced = false;
   Offset? target;
   double droppedAt = -10;
@@ -181,16 +191,15 @@ class _TankMotion extends ChangeNotifier {
     final delta = ((elapsed - _last).inMicroseconds / 1000000).clamp(0.0, .038);
     _last = elapsed;
     time += delta;
-    if (time >= _nextSelection) {
-      _selectFish();
-      _nextSelection = time + .65;
+    if (time >= _nextSync) {
+      _syncFish();
+      _nextSync = time + .65;
     }
 
-    var index = 0;
     final activeTarget = time - droppedAt < 2.9 ? target : null;
+    final movingTime = time * (reduced ? .32 : 1);
     for (final pose in poses.values) {
-      final natural = _position(pose.fish, index);
-      final movingTime = time * (reduced ? .32 : 1);
+      final natural = _position(pose, movingTime);
       final phase = pose.phase;
       final heading = math.cos(movingTime * .44 + phase);
       final destination = activeTarget == null
@@ -206,49 +215,47 @@ class _TankMotion extends ChangeNotifier {
       pose.yaw += (direction - pose.yaw) * delta * 7;
       final pitch = (dy * 1.8).clamp(-.23, .23) * pose.yaw.sign;
       pose.pitch += (pitch - pose.pitch) * delta * 5;
-      index++;
     }
     notifyListeners();
   }
 
-  Offset _position(Fish fish, int index) {
-    final phase = fish.id * 2.39996;
-    final movingTime = time * (reduced ? .32 : 1);
-    final cycle = movingTime * .44 + phase;
+  Offset _position(_Pose pose, double movingTime) {
+    final fish = pose.fish;
+    final cycle = movingTime * .44 + pose.phase;
+    final depth = fish.id * .41421356 % 1;
     if (fish.age(pond.time) < 8 && pond.sheltered > 0) {
       return Offset(
         (fish.id.isEven ? .19 : .84) + math.sin(cycle) * .07,
-        .78 + math.cos(cycle) * .048,
+        .72 + depth * .13 + math.cos(cycle) * .03,
       );
     }
     return Offset(
-      .5 + math.sin(cycle) * (.29 + (index % 3) * .047),
-      .30 + (index % 7) * .079 + math.cos(cycle) * .031,
+      .5 + math.sin(cycle) * (.29 + (fish.id % 3) * .047),
+      .29 + depth * .50 + math.cos(cycle * 1.07) * .031,
     );
   }
 
-  void _selectFish() {
-    const limit = 13;
-    final young = pond.fish.where((fish) => !fish.isAdult(pond.time)).toList();
-    final selected = <Fish>[
-      ...pond.fish.where((fish) => pond.breeders.contains(fish.id)),
-      ...pond.fish
-          .where(
-            (fish) =>
-                fish.isAdult(pond.time) && !pond.breeders.contains(fish.id),
-          )
-          .take(limit - 2 - math.min(young.length, 4)),
-      ...young.reversed.take(4),
-    ];
-    final ids = selected.map((fish) => fish.id).toSet();
-    poses.removeWhere((id, pose) => !ids.contains(id));
-    for (final (index, fish) in selected.indexed) {
+  void _syncFish() {
+    final ids = <int>{};
+    final movingTime = time * (reduced ? .32 : 1);
+    for (final fish in pond.fish) {
+      ids.add(fish.id);
       poses.putIfAbsent(fish.id, () {
-        final point = _position(fish, index);
         final phase = fish.id * 2.39996;
-        return _Pose(fish, phase, point.dx, point.dy, math.cos(phase));
+        final pose = _Pose(
+          fish,
+          phase,
+          .5,
+          .5,
+          math.cos(movingTime * .44 + phase),
+        );
+        final point = _position(pose, movingTime);
+        return pose
+          ..x = point.dx
+          ..y = point.dy;
       });
     }
+    poses.removeWhere((id, pose) => !ids.contains(id));
   }
 }
 
@@ -335,9 +342,25 @@ class _AquariumPainter extends CustomPainter {
     }
 
     _drawPlants(canvas, size, line, time);
-    final spriteScale = (size.width / 420).clamp(.77, 1.24);
+    const detailedFish = 24;
+    final density = math.max(1, motion.poses.length / detailedFish);
+    final spriteScale =
+        (size.width / 420).clamp(.77, 1.24) *
+        (1 / math.sqrt(density)).clamp(.42, 1);
+    var index = 0;
     for (final pose in motion.poses.values) {
-      _drawFish(canvas, size, pose, spriteScale, time);
+      final detailed =
+          index < detailedFish || motion.pond.breeders.contains(pose.fish.id);
+      _drawFish(
+        canvas,
+        size,
+        pose,
+        spriteScale,
+        time,
+        line,
+        detailed: detailed,
+      );
+      index++;
     }
     final point = motion.target;
     final sinceDrop = motion.time - motion.droppedAt;
@@ -399,19 +422,31 @@ class _AquariumPainter extends CustomPainter {
     _Pose pose,
     double scale,
     double time,
-  ) {
+    Paint paint, {
+    required bool detailed,
+  }) {
     final fish = pose.fish;
     final growth = fish.growth(motion.pond.time);
     scale *= .26 + growth * .70;
     canvas.save();
     canvas.translate(pose.x * size.width, pose.y * size.height);
     canvas.rotate(pose.pitch);
-    canvas.scale(scale * pose.yaw.sign * math.max(.13, pose.yaw.abs()), scale);
+    final facing = pose.yaw < 0 ? -1 : 1;
+    canvas.scale(scale * facing * math.max(.13, pose.yaw.abs()), scale);
     final tail = tailColor(fish.tail);
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+    if (!detailed) {
+      final flap = math.sin(time * 21 + pose.phase) * 2;
+      paint
+        ..color = tail
+        ..strokeWidth = 3.5;
+      const tip = Offset(-9, 0);
+      canvas.drawLine(Offset(-22, -9 + flap), tip, paint);
+      canvas.drawLine(Offset(-22, 9 + flap), tip, paint);
+      paint.color = _mint;
+      canvas.drawLine(const Offset(-3, 0), const Offset(17, 0), paint);
+      canvas.restore();
+      return;
+    }
     void glow(Path path, Color color, double width) {
       paint
         ..strokeWidth = width + 1

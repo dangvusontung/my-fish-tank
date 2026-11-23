@@ -244,7 +244,7 @@ class _PondScreenState extends State<PondScreen> with WidgetsBindingObserver {
                           ),
                           const SizedBox(height: 12),
                           const Text(
-                            '5 phút ngoài đời ≈ 1 ngày trong hồ · Offline tối đa 8 giờ',
+                            '${Pond.daySeconds ~/ 60} phút ngoài đời ≈ 1 ngày trong hồ · Offline tối đa 8 giờ',
                             textAlign: TextAlign.center,
                             style: TextStyle(fontSize: 12, color: _subtle),
                           ),
