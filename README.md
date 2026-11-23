@@ -2,6 +2,8 @@
 
 Game idle hồ cá nước ngọt viết bằng Flutter. Bản đầu tập trung vào một bể cá bảy màu có sức chứa vô hạn.
 
+[Thiết kế game và các cơ chế đã bàn](docs/game-design.md).
+
 - Chạm vào hồ để rải mồi. Cá ký tự neon bơi tới và lớn dần.
 - Cá giống cho các lứa mới. Rêu Java giúp cá con tránh bị cá lớn ăn.
 - Chợ đề cử một con giống dựa trên màu đuôi. Một nút giữ con đó và bán các cá đã lớn còn lại.
