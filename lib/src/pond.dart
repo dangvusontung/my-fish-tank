@@ -121,7 +121,7 @@ class Pond {
     return pond;
   }
 
-  static const daySeconds = 300;
+  static const daySeconds = 120;
   static const maxOffline = Duration(hours: 8);
   static const refillCost = 20;
   static const waterChangeCost = 12;
@@ -182,7 +182,7 @@ class Pond {
   double _rank(Fish item) => item.vividness - .16 * item.age(time);
 
   double _income(int adults) =>
-      (adults * 1.32 + (fish.length - adults) * .28) *
+      (adults * 3.3 + (fish.length - adults) * .7) *
       (.30 + .70 * satiety / 100) *
       (.28 + .72 * water / 100);
 
