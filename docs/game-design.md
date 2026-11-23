@@ -26,6 +26,13 @@ Mỗi con có tuổi, giới tính, màu hoặc vân, sức khỏe và vòng đ�
 - Cá bảy màu trưởng thành có thể ăn cá con mới đẻ, kể cả con của nó. Nguy cơ trong game phụ thuộc vào số cá lớn, cỡ cá non và chỗ trú. Cá con có thể lao vào rêu khi bị đuổi. Khu ươm riêng chặn việc cá lớn trong bể chính săn cá non. Tỷ lệ bị ăn thay đổi theo điều kiện của hồ. [Nilsson và cộng sự](https://pubmed.ncbi.nlm.nih.gov/21516310/) · [Loekle và cộng sự](https://www.sciencedirect.com/science/article/pii/S016310478290749X)
 - **Sổ tay hồ cá** cho xem tập tính từng loài trước khi mua. Ngưỡng nuôi theo đàn, thời gian ấp và tỷ lệ nở trong game sẽ được xác định khi triển khai từng loài.
 
+### Rarity · Biến thể cá bảy màu
+
+- Độ hiếm gắn với một biến thể có thể truyền cho cá con. Mỗi biến thể Legendary có dáng riêng và chuyển động nhận biết được trong đàn. Thẻ trong **Chợ cá** hiện tên biến thể, bậc hiếm và giá bán để người chơi cân nhắc giữ giống.
+- **Đuôi sao chổi** là mẫu Legendary đầu tiên. Thân mint và mắt chấm trắng giữ dáng cá bảy màu. Đuôi xẻ thành hai nhánh dài, từ cam ở gốc sang tím ở ngọn. Hai nhánh quẫy lệch nhịp.
+- Khi cá đang bơi, hai nhánh để lại vệt tím theo đường đuôi vừa đi qua. Vệt dài hơn khi bơi nhanh, mờ dần sau đuôi và còn lại trong chốc lát khi cá giảm tốc. Lúc quay đầu, chót đuôi uốn theo sau và để lại 2–3 đốm tím tan nhanh.
+- Mốc để thử cân bằng cho mỗi cá con từ cặp phổ thông là **94% Common**, **5,5% Uncommon**, **0,45% Rare** và **0,05% Legendary**. Tính một lần lúc sinh, kể cả offline. Với một biến thể Legendary cụ thể, tỷ lệ di truyền đề xuất là **3%** khi một trong hai bố mẹ có biến thể đó và **10%** khi cả hai có. Đây là thông số game để thử nghiệm.
+
 ## Chăm hồ và nâng cấp
 
 | Phần | Tác dụng trong thiết kế |
@@ -61,7 +68,7 @@ Khi trại đủ lớn, người chơi có thể bàn giao đàn và thiết b�
 
 | Đã có | Phần phát triển tiếp |
 | --- | --- |
-| Chỉ có bảy màu với ba màu đuôi. Cá lớn dần theo tuổi, sinh lứa **20–40**, cá non có thể bị ăn và cá chết khi hết tuổi thọ. | Các loài khác, mô hình trứng và ấp, tập tính chi tiết, sức khỏe riêng, sinh trưởng theo mồi và nước, Sổ tay hồ cá. |
+| Chỉ có bảy màu với ba màu đuôi. Cá lớn dần theo tuổi, sinh lứa **20–40**, cá non có thể bị ăn và cá chết khi hết tuổi thọ. | Biến thể hiếm và hiệu ứng bơi riêng, các loài khác, mô hình trứng và ấp, tập tính chi tiết, sức khỏe riêng, sinh trưởng theo mồi và nước, Sổ tay hồ cá. |
 | Một bể toàn màn hình dọc hoặc ngang. Tất cả cá sống đều được vẽ. Bảng **Quản lý** gom các chức năng. | Tách khu với nước và mồi riêng. Chỗ nuôi betta trống và khu ươm riêng. |
 | Thu xu tự động, máy cho ăn, nạp mồi, lọc, rêu Java, thay nước và vớt xác hàng loạt. | Chỉnh tốc độ rải và kho riêng, dự báo hiệu quả nâng cấp, cây lớn, hiển thị xác cá để vớt từng con, ốc và dịch vụ chăm hồ. |
 | Tìm tối đa một cá giống theo màu đuôi, độ đậm màu và tuổi. Bán chung cá trưởng thành đủ điều kiện. | Lọc và bán theo lứa, lịch sử gây giống, vân, sức khỏe và giá theo từng giai đoạn. |
