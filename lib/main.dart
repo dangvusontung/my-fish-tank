@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
@@ -47,6 +48,8 @@ class PondScreen extends StatefulWidget {
 class _PondScreenState extends State<PondScreen> with WidgetsBindingObserver {
   final _aquarium = GlobalKey<AquariumState>();
   PondController? _controller;
+  int? _selectedFish;
+  bool _zoomed = false;
 
   @override
   void initState() {
@@ -131,6 +134,13 @@ class _PondScreenState extends State<PondScreen> with WidgetsBindingObserver {
                   controller.act((pond) => pond.scoop(corpse.id));
                   _toast('Đã vớt xác ${corpse.species.label.toLowerCase()}.');
                 },
+                selectedId: _selectedFish,
+                onSelect: (fish) => setState(() => _selectedFish = fish.id),
+                onZoom: (zoom) {
+                  if ((zoom > 1.01) != _zoomed) {
+                    setState(() => _zoomed = zoom > 1.01);
+                  }
+                },
               ),
               builder: (context, aquarium) => Stack(
                 fit: StackFit.expand,
@@ -155,33 +165,68 @@ class _PondScreenState extends State<PondScreen> with WidgetsBindingObserver {
                     child: SafeArea(
                       top: false,
                       minimum: const EdgeInsets.fromLTRB(12, 0, 12, 14),
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 10,
-                          runSpacing: 4,
-                          children: [
-                            FilledButton.tonalIcon(
-                              onPressed: () => _manage(controller),
-                              icon: Badge(
-                                isLabelVisible: controller.report != null,
-                                child: const Icon(Icons.tune, size: 19),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (controller.pond.fish
+                                  .where((fish) => fish.id == _selectedFish)
+                                  .firstOrNull
+                              case final fish?)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _FishCard(
+                                fish: fish,
+                                pond: controller.pond,
+                                onClose: () =>
+                                    setState(() => _selectedFish = null),
                               ),
-                              label: const Text('Quản lý'),
-                            ),
-                            FilledButton.icon(
-                              onPressed: controller.pond.fish.isEmpty
-                                  ? null
-                                  : () => _aquarium.currentState?.feed(),
-                              icon: const Icon(
-                                Icons.bubble_chart_outlined,
-                                size: 19,
+                            )
+                          else if (_zoomed)
+                            const Padding(
+                              padding: EdgeInsets.only(bottom: 8),
+                              child: _TankBadge(
+                                'Chạm vào cá để xem chi tiết',
+                                _mint,
                               ),
-                              label: const Text('Rải mồi'),
                             ),
-                          ],
-                        ),
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 10,
+                            runSpacing: 4,
+                            children: [
+                              FilledButton.tonalIcon(
+                                onPressed: () => _manage(controller),
+                                icon: Badge(
+                                  isLabelVisible: controller.report != null,
+                                  child: const Icon(Icons.tune, size: 19),
+                                ),
+                                label: const Text('Quản lý'),
+                              ),
+                              if (_zoomed)
+                                FilledButton.tonalIcon(
+                                  onPressed: () {
+                                    _aquarium.currentState?.resetView();
+                                    setState(() => _selectedFish = null);
+                                  },
+                                  icon: const Icon(
+                                    Icons.zoom_out_map,
+                                    size: 19,
+                                  ),
+                                  label: const Text('Thu nhỏ'),
+                                ),
+                              FilledButton.icon(
+                                onPressed: controller.pond.fish.isEmpty
+                                    ? null
+                                    : () => _aquarium.currentState?.feed(),
+                                icon: const Icon(
+                                  Icons.bubble_chart_outlined,
+                                  size: 19,
+                                ),
+                                label: const Text('Rải mồi'),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -1003,4 +1048,174 @@ class _ReportPanel extends StatelessWidget {
       ),
     );
   }
+}
+
+class _FishCard extends StatelessWidget {
+  const _FishCard({
+    required this.fish,
+    required this.pond,
+    required this.onClose,
+  });
+
+  final Fish fish;
+  final Pond pond;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final species = fish.species;
+    final age = fish.age(pond.time);
+    final adult = fish.isAdult(pond.time);
+    final breeder = pond.breeders.contains(fish.id);
+    final stage = adult
+        ? 'Trưởng thành · ${age.floor()} ngày tuổi'
+        : age < Pond.fryDays
+        ? 'Cá bột · ${age.floor()} ngày tuổi'
+        : 'Cá non · ${age.floor()} ngày · lớn sau ${(fish.adultDay - age).ceil()} ngày';
+    final lifeLeft = math.max(0, fish.lifeDays - age).floor();
+    final price = breeder
+        ? 'Cá giống · giữ lại cho lứa sau'
+        : adult
+        ? 'Bán được ${fish.price} xu'
+        : 'Giá khi lớn ~${fish.price} xu';
+    final income = adult ? species.adultIncome : species.youngIncome;
+    final colored = species == Species.guppy || species == Species.betta;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 460),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xf0112025),
+          border: Border.all(
+            color: fish.isComet ? const Color(0xff9d6fd8) : _border,
+          ),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 4, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  if (fish.isComet)
+                    const Text(
+                      '⋏((•›',
+                      style: TextStyle(
+                        fontSize: 22,
+                        color: Color(0xffe4b8ff),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    )
+                  else
+                    _Glyph(species, tail: fish.tail, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${species.label} ${fish.sex == Sex.male ? 'trống' : 'mái'}'
+                          '${colored ? ' · ${fish.tail.label}' : ''}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          [
+                            if (fish.isComet) 'Legendary · Đuôi sao chổi',
+                            if (breeder) 'Cá giống',
+                            species.latin,
+                          ].join(' · '),
+                          style: TextStyle(
+                            color: fish.isComet
+                                ? const Color(0xffe4ccfb)
+                                : _subtle,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: onClose,
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Đóng thông tin cá',
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 10, top: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _Meter('Lớn', fish.growth(pond.time), stage, _mint),
+                    const SizedBox(height: 6),
+                    _Meter(
+                      'Màu',
+                      fish.vividness / 100,
+                      'Độ đậm màu ${fish.vividness}/100',
+                      fish.isComet
+                          ? const Color(0xffe4b8ff)
+                          : fishColor(species, fish.tail),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '$price · ${income.toStringAsFixed(1)} xu/phút khi no, nước sạch\n'
+                      'Còn sống khoảng $lifeLeft ngày',
+                      style: const TextStyle(
+                        color: _subtle,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Meter extends StatelessWidget {
+  const _Meter(this.label, this.value, this.detail, this.color);
+
+  final String label;
+  final double value;
+  final String detail;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      SizedBox(
+        width: 36,
+        child: Text(
+          label,
+          style: const TextStyle(color: _subtle, fontSize: 12),
+        ),
+      ),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(detail, style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 3),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: value.clamp(0, 1).toDouble(),
+                minHeight: 5,
+                color: color,
+                backgroundColor: const Color(0xff294044),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 }

@@ -34,11 +34,22 @@ class Aquarium extends StatefulWidget {
     required this.pond,
     required this.onFeed,
     this.onScoop,
+    this.onSelect,
+    this.selectedId,
+    this.onZoom,
   });
 
   final Pond pond;
   final VoidCallback onFeed;
   final ValueChanged<Corpse>? onScoop;
+
+  /// Called when the player picks a fish: a long press at any zoom, or a
+  /// tap while zoomed in.
+  final ValueChanged<Fish>? onSelect;
+
+  /// The fish to highlight and follow.
+  final int? selectedId;
+  final ValueChanged<double>? onZoom;
 
   @override
   State<Aquarium> createState() => AquariumState();
@@ -46,13 +57,24 @@ class Aquarium extends StatefulWidget {
 
 class AquariumState extends State<Aquarium>
     with SingleTickerProviderStateMixin {
+  static const maxZoom = 5.0;
+
+  /// Above this zoom a tap picks a fish instead of feeding.
+  static const pickZoom = 1.3;
+
   late final _TankMotion _motion;
   late final Ticker _ticker;
+  double _gestureZoom = 1;
+  Offset _gestureAnchor = Offset.zero;
+
+  double get zoom => _motion.zoom;
 
   @override
   void initState() {
     super.initState();
-    _motion = _TankMotion(widget.pond);
+    _motion = _TankMotion(widget.pond)
+      ..selected = widget.selectedId
+      ..onZoom = widget.onZoom;
     _ticker = createTicker(_motion.tick)..start();
   }
 
@@ -62,27 +84,108 @@ class AquariumState extends State<Aquarium>
     _motion.reduced = MediaQuery.disableAnimationsOf(context);
   }
 
+  @override
+  void didUpdateWidget(Aquarium oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _motion.onZoom = widget.onZoom;
+    if (widget.selectedId != oldWidget.selectedId) {
+      _motion.selected = widget.selectedId;
+      _motion.follow = widget.selectedId != null;
+      if (widget.selectedId != null && _motion.zoom < 2.5) {
+        _motion.targetZoom = 2.5;
+      }
+    }
+  }
+
   void feed([Offset target = const Offset(.51, .51)]) {
     if (widget.pond.fish.isEmpty) return;
     _motion.drop(target);
     widget.onFeed();
   }
 
+  /// Zooms back out to the whole tank.
+  void resetView() {
+    _motion
+      ..follow = false
+      ..targetZoom = null
+      ..setView(1, const Offset(.5, .5));
+  }
+
+  /// Where fish [id] is drawn, in local coordinates of a tank of [size].
+  @visibleForTesting
+  Offset? fishPosition(int id, Size size) {
+    final pose = _motion.poses[id];
+    if (pose == null) return null;
+    return _motion.toScreen(Offset(pose.x, pose.y), size);
+  }
+
+  Fish? _fishAt(Offset point, Size size) {
+    final scale = _motion.spriteScale(size) * _motion.zoom;
+    Fish? best;
+    var bestDistance = double.infinity;
+    for (final pose in _motion.poses.values) {
+      final distance =
+          (_motion.toScreen(Offset(pose.x, pose.y), size) - point).distance;
+      final reach = math.max(
+        26.0,
+        30 * scale * pose.fish.growth(widget.pond.time),
+      );
+      if (distance < reach && distance < bestDistance) {
+        best = pose.fish;
+        bestDistance = distance;
+      }
+    }
+    return best;
+  }
+
   void _tap(Offset point, Size size) {
     final onScoop = widget.onScoop;
     if (onScoop != null) {
       for (final corpse in widget.pond.corpses.reversed) {
-        final spot = corpseSpot(corpse);
-        final distance =
-            (Offset(spot.dx * size.width, spot.dy * size.height) - point)
-                .distance;
-        if (distance < 30) {
+        final spot = _motion.toScreen(corpseSpot(corpse), size);
+        if ((spot - point).distance < 30) {
           onScoop(corpse);
           return;
         }
       }
     }
-    feed(Offset(point.dx / size.width, point.dy / size.height));
+    final onSelect = widget.onSelect;
+    if (onSelect != null && _motion.zoom > pickZoom) {
+      if (_fishAt(point, size) case final fish?) {
+        onSelect(fish);
+        return;
+      }
+    }
+    final tank = _motion.toTank(point, size);
+    feed(tank);
+  }
+
+  void _longPress(Offset point, Size size) {
+    final onSelect = widget.onSelect;
+    if (onSelect == null) return;
+    if (_fishAt(point, size) case final fish?) onSelect(fish);
+  }
+
+  void _scaleStart(ScaleStartDetails details, Size size) {
+    _gestureZoom = _motion.zoom;
+    _gestureAnchor = _motion.toTank(details.localFocalPoint, size);
+  }
+
+  void _scaleUpdate(ScaleUpdateDetails details, Size size) {
+    final zoom = (_gestureZoom * details.scale).clamp(1.0, maxZoom);
+    if (zoom == 1 && _motion.zoom == 1) return;
+    final focal = details.localFocalPoint;
+    // Keep the tank point under the fingers where it started.
+    final center =
+        _gestureAnchor -
+        Offset(
+          (focal.dx / size.width - .5) / zoom,
+          (focal.dy / size.height - .5) / zoom,
+        );
+    _motion
+      ..follow = false
+      ..targetZoom = null
+      ..setView(zoom, center);
   }
 
   @override
@@ -95,21 +198,29 @@ class AquariumState extends State<Aquarium>
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
-      builder: (context, constraints) => Semantics(
-        button: true,
-        label: 'Rải thức ăn vào hồ',
-        onTap: () => feed(),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          excludeFromSemantics: true,
-          onTapUp: (event) => _tap(event.localPosition, constraints.biggest),
-          child: SizedBox.expand(
-            child: RepaintBoundary(
-              child: CustomPaint(painter: _AquariumPainter(_motion)),
+      builder: (context, constraints) {
+        final size = constraints.biggest;
+        return Semantics(
+          button: true,
+          label: 'Rải thức ăn vào hồ',
+          onTap: () => feed(),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            excludeFromSemantics: true,
+            onTapUp: (event) => _tap(event.localPosition, size),
+            onLongPressStart: (event) => _longPress(event.localPosition, size),
+            onScaleStart: (details) => _scaleStart(details, size),
+            onScaleUpdate: (details) => _scaleUpdate(details, size),
+            child: SizedBox.expand(
+              child: ClipRect(
+                child: RepaintBoundary(
+                  child: CustomPaint(painter: _AquariumPainter(_motion)),
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -176,6 +287,50 @@ class _TankMotion extends ChangeNotifier {
   Offset? target;
   double droppedAt = -10;
 
+  /// The view: magnification, and the tank point (as fractions) at the
+  /// centre of the screen.
+  double zoom = 1;
+  Offset center = const Offset(.5, .5);
+  double? targetZoom;
+  int? selected;
+  bool follow = false;
+  ValueChanged<double>? onZoom;
+
+  double spriteScale(Size size) {
+    final density = math.max(1, poses.length / _AquariumPainter.detailedFish);
+    return (size.shortestSide / 420).clamp(.77, 1.24) *
+        (1 / math.sqrt(density)).clamp(.42, 1);
+  }
+
+  Offset toTank(Offset local, Size size) => Offset(
+    (local.dx / size.width - .5) / zoom + center.dx,
+    (local.dy / size.height - .5) / zoom + center.dy,
+  );
+
+  Offset toScreen(Offset tank, Size size) => Offset(
+    ((tank.dx - center.dx) * zoom + .5) * size.width,
+    ((tank.dy - center.dy) * zoom + .5) * size.height,
+  );
+
+  /// Whether the tank point [tank] is on screen, with [margin] to spare.
+  bool visible(Offset tank, [double margin = .06]) {
+    final half = .5 / zoom + margin;
+    return (tank.dx - center.dx).abs() < half &&
+        (tank.dy - center.dy).abs() < half;
+  }
+
+  void setView(double newZoom, Offset newCenter) {
+    final previous = zoom;
+    zoom = newZoom.clamp(1.0, AquariumState.maxZoom);
+    final half = .5 / zoom;
+    center = Offset(
+      newCenter.dx.clamp(half, 1 - half),
+      newCenter.dy.clamp(half, 1 - half),
+    );
+    if ((previous - zoom).abs() > 1e-6) onZoom?.call(zoom);
+    notifyListeners();
+  }
+
   void drop(Offset point) {
     target = Offset(
       point.dx.clamp(.08, .92).toDouble(),
@@ -238,6 +393,24 @@ class _TankMotion extends ChangeNotifier {
           : corpses[i % corpses.length].x + (i.isEven ? -.025 : .025);
       final step = (goal - snails[i]).clamp(-.012 * delta, .012 * delta);
       snails[i] += step;
+    }
+
+    // Glide the camera towards the followed fish and any requested zoom.
+    final ease = math.min(1.0, delta * 4);
+    var nextZoom = zoom;
+    if (targetZoom case final goal?) {
+      nextZoom += (goal - zoom) * ease;
+      if ((goal - nextZoom).abs() < .01) {
+        nextZoom = goal;
+        targetZoom = null;
+      }
+    }
+    var nextCenter = center;
+    if (poses[selected] case final pose? when follow) {
+      nextCenter += (Offset(pose.x, pose.y) - center) * ease;
+    }
+    if (nextZoom != zoom || nextCenter != center) {
+      setView(nextZoom, nextCenter);
     }
     notifyListeners();
   }
@@ -319,6 +492,7 @@ class _AquariumPainter extends CustomPainter {
   _AquariumPainter(this.motion) : super(repaint: motion);
 
   final _TankMotion motion;
+  static const detailedFish = 24;
   static const _mint = Color(0xff8af9d6);
   static const _cometViolet = Color(0xffbd83ff);
   static final _cometTail = const LinearGradient(
@@ -344,6 +518,21 @@ class _AquariumPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final zoomed = motion.zoom != 1;
+    if (zoomed) {
+      canvas.save();
+      canvas.translate(size.width / 2, size.height / 2);
+      canvas.scale(motion.zoom);
+      canvas.translate(
+        -motion.center.dx * size.width,
+        -motion.center.dy * size.height,
+      );
+    }
+    _paintTank(canvas, size);
+    if (zoomed) canvas.restore();
+  }
+
+  void _paintTank(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
     final time = motion.time * (motion.reduced ? .32 : 1);
     final paint = Paint()..shader = _glass.createShader(rect);
@@ -411,24 +600,30 @@ class _AquariumPainter extends CustomPainter {
     _drawClutches(canvas, size, paint, line, time);
     _drawCorpses(canvas, size, line, time);
     _drawSnails(canvas, size, line);
-    const detailedFish = 24;
-    final density = math.max(1, motion.poses.length / detailedFish);
-    final spriteScale =
-        (size.shortestSide / 420).clamp(.77, 1.24) *
-        (1 / math.sqrt(density)).clamp(.42, 1);
+    final spriteScale = motion.spriteScale(size);
     if (!motion.reduced) {
       for (final pose in motion.poses.values) {
-        if (pose.trail case final trail? when trail.length > 1) {
+        if (pose.trail case final trail?
+            when trail.length > 1 && motion.visible(Offset(pose.x, pose.y))) {
           _drawCometTrail(canvas, size, pose, trail, spriteScale, line, paint);
         }
       }
     }
     var index = 0;
+    // Zoomed in, fish on screen get full detail, and fish off screen are
+    // skipped. Blur grows with the zoom, so only the picked fish keeps it.
+    var closeUps = 0;
+    final zoomed = motion.zoom > 1.01;
     for (final pose in motion.poses.values) {
+      if (zoomed && !motion.visible(Offset(pose.x, pose.y))) {
+        index++;
+        continue;
+      }
       final detailed =
           index < detailedFish ||
           pose.fish.isComet ||
-          motion.pond.breeders.contains(pose.fish.id);
+          motion.pond.breeders.contains(pose.fish.id) ||
+          (zoomed && closeUps++ < 60);
       _drawFish(
         canvas,
         size,
@@ -437,8 +632,21 @@ class _AquariumPainter extends CustomPainter {
         time,
         line,
         detailed: detailed,
+        soft: !zoomed || pose.fish.id == motion.selected,
       );
       index++;
+    }
+    if (motion.poses[motion.selected] case final pose?) {
+      final radius = 28 * _fishScale(pose.fish, spriteScale) + 6;
+      line
+        ..color = const Color(0xffffffff)
+            .withValues(alpha: .55 + math.sin(motion.time * 4) * .2)
+        ..strokeWidth = 1.6 / motion.zoom;
+      canvas.drawCircle(
+        Offset(pose.x * size.width, pose.y * size.height),
+        radius,
+        line,
+      );
     }
     final point = motion.target;
     final sinceDrop = motion.time - motion.droppedAt;
@@ -666,6 +874,7 @@ class _AquariumPainter extends CustomPainter {
     double time,
     Paint paint, {
     required bool detailed,
+    bool soft = true,
   }) {
     final fish = pose.fish;
     scale = _fishScale(fish, scale);
@@ -688,10 +897,17 @@ class _AquariumPainter extends CustomPainter {
       return;
     }
     void glow(Path path, Color color, double width, {Shader? shader}) {
-      paint
-        ..strokeWidth = width + 1
-        ..color = color.withValues(alpha: .57)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.8);
+      if (soft) {
+        paint
+          ..strokeWidth = width + 1
+          ..color = color.withValues(alpha: .57)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.8);
+      } else {
+        // A wide translucent stroke reads as glow without a blur pass.
+        paint
+          ..strokeWidth = width + 3.5
+          ..color = color.withValues(alpha: .28);
+      }
       canvas.drawPath(path, paint);
       paint
         ..strokeWidth = width

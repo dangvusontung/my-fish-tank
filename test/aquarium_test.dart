@@ -141,4 +141,70 @@ void main() {
     await tester.tapAt(const Offset(180, 80));
     expect(fed, 1);
   });
+
+  testWidgets('pinches to zoom and picks fish for a closer look', (
+    tester,
+  ) async {
+    final pond = Pond.starter();
+    final key = GlobalKey<AquariumState>();
+    const size = Size(360, 640);
+    final zooms = <double>[];
+    final picked = <Fish>[];
+    var fed = 0;
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox.fromSize(
+            size: size,
+            child: Aquarium(
+              key: key,
+              pond: pond,
+              onFeed: () => fed++,
+              onSelect: picked.add,
+              onZoom: zooms.add,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+    final aquarium = key.currentState!;
+
+    // A long press picks a fish even at full view.
+    final first = pond.fish.first;
+    await tester.longPressAt(aquarium.fishPosition(first.id, size)!);
+    expect(picked.single.id, first.id);
+
+    // Spread two fingers apart around the middle of the tank.
+    final left = await tester.startGesture(const Offset(150, 320));
+    final right = await tester.startGesture(const Offset(210, 320), pointer: 2);
+    await tester.pump();
+    for (var step = 1; step <= 6; step++) {
+      await left.moveTo(Offset(150 - step * 20, 320));
+      await right.moveTo(Offset(210 + step * 20, 320));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await left.up();
+    await right.up();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(aquarium.zoom, greaterThan(2));
+    expect(zooms.last, aquarium.zoom);
+
+    // Zoomed in, a tap on a fish picks it instead of feeding.
+    final visible = pond.fish.firstWhere((fish) {
+      final at = aquarium.fishPosition(fish.id, size)!;
+      return (Offset.zero & size).deflate(30).contains(at);
+    });
+    await tester.tapAt(aquarium.fishPosition(visible.id, size)!);
+    expect(picked.last.id, visible.id);
+    expect(fed, 0);
+
+    aquarium.resetView();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(aquarium.zoom, 1);
+    expect(zooms.last, 1);
+  });
 }
